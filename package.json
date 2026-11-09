@@ -1,0 +1,18 @@
+{
+  "name": "ai-document-manager",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Plateforme de gestion documentaire avec assistant IA et citations de sources",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f",
+    "infra:reset": "docker compose down -v",
+    "infra:ps": "docker compose ps"
+  }
+}
