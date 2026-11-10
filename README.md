@@ -15,14 +15,16 @@ pnpm infra:up
 ```
 
 ## Services exposés :
-| Service | URL / port |
-|---|---|
-| PostgreSQL | localhost:5432 |
-| Redis | localhost:6379 |
-| Silo API S3 | `http://localhost:9000`            |
+
+| Service      | URL / port                        |
+| ------------ | --------------------------------- |
+| PostgreSQL   | localhost:5432                    |
+| Redis        | localhost:6379                    |
+| Silo API S3  | `http://localhost:9000`           |
 | Silo Console | `http://localhost:9001` (console) |
 
 ## Vérifications post-démarrage
+
 1. docker compose ps → les 3 services sont running (postgres et redis healthy).
 2. docker compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\dx" → vector listé.
 3. docker compose exec redis redis-cli ping → PONG.
@@ -31,15 +33,17 @@ pnpm infra:up
 6. pnpm infra:down puis pnpm infra:up → les données persistent (volumes nommés).
 
 ## Scripts utiles
+
 ```bash
 pnpm infra:up      # démarre l'infra
 pnpm infra:down    # arrête l'infra (conserve les volumes)
 pnpm infra:reset   # arrête et supprime les volumes (repart de zéro)
 pnpm infra:logs    # suit les logs
 pnpm infra:ps      # état des services
-``` 
+```
 
 ## Choix expliqués :
+
 - La commande `\dx` de psql liste les extensions installées → vérification directe de pgvector.
 - `curl .../minio/health/live` : endpoint **officiel** MinIO de liveness, pas de hack.
 - `pnpm infra:reset` documenté explicitement avec l’avertissement « supprime les volumes » → c’est l’action destructive, elle doit être visible.

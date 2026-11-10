@@ -7,7 +7,7 @@
 
 ## Contexte
 
-Le projet *AI Document Manager* est développé en solo mais avec des pratiques d’équipe.
+Le projet _AI Document Manager_ est développé en solo mais avec des pratiques d’équipe.
 Il combine plusieurs applications (front React, API Express, worker BullMQ) et un
 package partagé de types/schémas. Il dépend de trois services d’infrastructure
 (PostgreSQL + pgvector, Redis, pgsty/silo) qui doivent tourner localement sans budget.
