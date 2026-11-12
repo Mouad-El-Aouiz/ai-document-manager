@@ -48,5 +48,19 @@ export default tseslint.config(
     files: ['**/*.config.{js,ts,mjs,cjs}', '**/*.test.ts', '**/*.spec.ts'],
     extends: [tseslint.configs.disableTypeChecked],
   },
+  {
+    files: ['apps/api/src/**/*.ts'],
+    ignores: ['apps/api/src/config/env.ts', 'apps/api/src/**/*.test.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'process',
+          property: 'env',
+          message: 'Utilisez `env` depuis src/config/env.ts au lieu de process.env.',
+        },
+      ],
+    },
+  },
   prettier,
 );
