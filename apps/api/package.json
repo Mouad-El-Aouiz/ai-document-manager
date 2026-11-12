@@ -7,6 +7,9 @@
     "dev": "dotenv -e ../../.env -- tsx watch src/server.ts",
     "build": "tsc",
     "start": "dotenv -e ../../.env -- node dist/server.js",
+    "dev": "dotenv -e ../../.env -- tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "dotenv -e ../../.env -- node dist/server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "dotenv -e ../../.env -- vitest run",
@@ -26,6 +29,7 @@
     "pino-http": "^10.3.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/express": "^5.0.0",
     "@types/node": "^22.9.0",
     "@types/supertest": "^6.0.2",
