@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_MIGRATE")
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  INDEXED
+  ERROR
+}
+
+enum OrganizationPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+model Organization {
+  id        String           @id @default(uuid())
+  name      String
+  slug      String           @unique
+  plan      OrganizationPlan @default(FREE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  users     User[]
+  folders   Folder[]
+  documents Document[]
+  auditLogs AuditLog[]
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  passwordHash   String
+  role           UserRole
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  folders      Folder[]     @relation("FolderCreatedBy")
+  documents    Document[]   @relation("DocumentUploadedBy")
+  auditLogs    AuditLog[]
+
+  @@index([organizationId])
+}
+
+model Folder {
+  id             String   @id @default(uuid())
+  name           String
+  parentId       String?
+  organizationId String
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  parent       Folder?      @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  children     Folder[]     @relation("FolderHierarchy")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy    User         @relation("FolderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  documents    Document[]
+
+  @@index([organizationId])
+  @@index([parentId])
+}
+
+model Document {
+  id             String         @id @default(uuid())
+  name           String
+  mimeType       String
+  sizeBytes      Int
+  storagePath    String
+  status         DocumentStatus @default(PENDING)
+  folderId       String?
+  organizationId String
+  uploadedById   String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  folder       Folder?         @relation(fields: [folderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  uploadedBy   User            @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  chunks       DocumentChunk[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([folderId])
+}
+
+model DocumentChunk {
+  id             String                     @id @default(uuid())
+  documentId     String
+  organizationId String
+  chunkIndex     Int
+  content        String
+  embedding      Unsupported("vector(768)")?
+  embeddingModel String
+  createdAt      DateTime                   @default(now())
+
+  document Document @relation(fields: [documentId, organizationId], references: [id, organizationId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@index([organizationId])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  action         String
+  entityType     String
+  entityId       String
+  userId         String?
+  organizationId String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([userId])
+}
