@@ -1,38 +1,66 @@
 import express, { type Express } from 'express';
 import { pinoHttp } from 'pino-http';
+import helmet from 'helmet';
+import cors from 'cors';
 import type { Env } from './config/env.js';
 import type { Logger } from 'pino';
 import { requestContext } from './middlewares/request-context.js';
+import { errorHandler } from './middlewares/error-handler.js';
+import { validate } from './middlewares/validate.js';
+import { z } from 'zod';
+import { AppError } from './errors/AppError.js';
 
 export interface AppDependencies {
   env: Env;
   logger: Logger;
 }
 
+const testSchema = z.object({
+  name: z.string().min(3),
+});
+
 export function createApp(deps: AppDependencies): Express {
   const app = express();
 
-  // 1. Contexte de requête (request_id) DOIT être en premier
+  // 1. Contexte
   app.use(requestContext());
-
-  // 2. Logger HTTP (utilise l'AsyncLocalStorage mis en place juste avant)
   app.use(
     pinoHttp({
       logger: deps.logger,
-      // On n'auto-log pas les healthchecks pour ne pas polluer les logs
-      autoLogging: {
-        ignore: (req) => req.url.startsWith('/health'),
-      },
+      autoLogging: { ignore: (req) => req.url.startsWith('/health') },
     }),
   );
 
-  // 3. Body parser
-  app.use(express.json());
+  // 2. Sécurité
+  app.use(helmet());
+  app.use(cors({ origin: deps.env.CORS_ORIGINS }));
+  app.use(express.json({ limit: '1mb' }));
 
-  // Route de test temporaire
+  // 3. Routes
   app.get('/', (_req, res) => {
     res.json({ message: 'API is running', env: deps.env.NODE_ENV });
   });
+
+  // Route de test pour la validation
+  app.post(
+    '/test-validation',
+    validate({
+      body: testSchema,
+    }),
+    (req, res) => {
+      // On cast le body avec le type inféré par Zod, ce qui supprime le "any"
+      const body = req.body as z.infer<typeof testSchema>;
+      res.json({ received: body });
+    },
+  );
+
+  // 4. 404 Handler
+  app.use((_req, _res, next) => {
+    next(new AppError(404, 'NOT_FOUND', 'Route not found'));
+  });
+
+  // 5. Error Handler global
+  app.use(errorHandler(deps.logger));
 
   return app;
 }
