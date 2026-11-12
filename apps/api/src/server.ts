@@ -1,16 +1,17 @@
 import { createApp } from './app.js';
 import { loadEnv } from './config/env.js';
+import { createLogger } from './infra/logger.js';
 
 const env = loadEnv();
-const app = createApp({ env });
+const logger = createLogger(env);
+const app = createApp({ env, logger });
 
 const server = app.listen(env.PORT, () => {
-  // Utilisation de String(env.PORT) pour satisfaire ESLint
-  console.log(`🚀 API listening on port ${String(env.PORT)} in ${env.NODE_ENV} mode`);
+  logger.info(`🚀 API listening on port ${String(env.PORT)} in ${env.NODE_ENV} mode`);
 });
 
 const shutdown = (): void => {
-  console.log('Shutting down...');
+  logger.info('Shutting down...');
   server.close(() => {
     process.exit(0);
   });
