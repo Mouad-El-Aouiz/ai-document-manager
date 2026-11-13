@@ -68,9 +68,15 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aidm?schema=public
+      # IMPORTANT : l'API utilise aidm_app pour subir la RLS
+      DATABASE_URL: postgresql://aidm_app:password@localhost:5432/aidm?schema=public
+      # Les migrations, le seed et l'admin utilisent postgres
       DATABASE_URL_MIGRATE: postgresql://postgres:postgres@localhost:5432/aidm?schema=public
       REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: dev_access_secret_that_is_at_least_32_chars_long
+      JWT_REFRESH_SECRET: dev_refresh_secret_that_is_at_least_32_chars_long
+      CORS_ORIGINS: http://localhost:3000
+      LOG_LEVEL: error
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -90,8 +96,20 @@ jobs:
       - name: Create pgvector extension
         run: psql "postgresql://postgres:postgres@localhost:5432/aidm" -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
+      - name: Setup aidm_app role
+        run: |
+          psql "postgresql://postgres:postgres@localhost:5432/aidm" -c "CREATE ROLE aidm_app WITH LOGIN PASSWORD 'password';"
+          psql "postgresql://postgres:postgres@localhost:5432/aidm" -c "GRANT USAGE ON SCHEMA public TO aidm_app;"
+          psql "postgresql://postgres:postgres@localhost:5432/aidm" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO aidm_app;"
+
       - name: Apply Prisma migrations
         run: pnpm --filter @aidm/api db:migrate:deploy
+
+      - name: Apply RLS
+        run: pnpm --filter @aidm/api db:rls
+
+      - name: Seed database
+        run: pnpm --filter @aidm/api db:seed
 
       - name: Run tests with Vitest
         run: pnpm --filter @aidm/api test
