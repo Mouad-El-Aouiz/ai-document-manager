@@ -29,7 +29,8 @@
     "zod": "^3.23.8",
     "ioredis": "^5.4.1",
     "jose": "^5.9.6",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "rate-limiter-flexible": "^5.0.3"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.8",
