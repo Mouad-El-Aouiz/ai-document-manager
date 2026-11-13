@@ -40,7 +40,22 @@ export function createApp(deps: AppDependencies): Express {
   );
 
   // 2. Sécurité
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy:
+        deps.env.NODE_ENV === 'production'
+          ? true // Utilise la CSP par défaut de Helmet en prod
+          : {
+              directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
+                styleSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
+                imgSrc: ["'self'", 'data:', 'https://unpkg.com'],
+                connectSrc: ["'self'", 'https://unpkg.com'],
+              },
+            },
+    }),
+  );
   app.use(cors({ origin: deps.env.CORS_ORIGINS, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
