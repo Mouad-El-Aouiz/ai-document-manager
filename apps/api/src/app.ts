@@ -18,6 +18,7 @@ import { AuthController } from './controllers/auth.controller.js';
 import { AuthService } from './services/auth.service.js';
 import { FolderController } from './controllers/folder.controller.js';
 import { foldersRouter } from './routes/folders.js';
+import { docsRouter } from './routes/docs.js';
 
 export interface AppDependencies {
   env: Env;
@@ -48,10 +49,9 @@ export function createApp(deps: AppDependencies): Express {
   app.use(healthRouter(deps.prisma, deps.redis));
 
   // 4. Services & Controllers
-  // On instancie AuthService avec ses 3 arguments (prisma, env, logger)
   const authService = new AuthService(deps.prisma, deps.env, deps.logger);
-  // On instancie AuthController avec ses 2 arguments (authService, env)
   const authController = new AuthController(authService, deps.env);
+  const folderController = new FolderController();
 
   // 5. Routes
   app.get('/', (_req, res) => {
@@ -61,8 +61,9 @@ export function createApp(deps: AppDependencies): Express {
   // Routes d'authentification
   app.use('/api/v1/auth', authRouter(authController, deps.redis, deps.env));
 
-  const folderController = new FolderController();
   app.use('/api/v1/folders', foldersRouter(folderController, deps.env, deps.prisma));
+
+  app.use('/api/v1', docsRouter(deps.env));
 
   // Route de test pour la validation (peut être supprimée plus tard)
   app.post(
