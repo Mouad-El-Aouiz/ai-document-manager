@@ -11,7 +11,6 @@ if (!process.env.DATABASE_URL || !process.env.DATABASE_URL_MIGRATE) {
 const appPrisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
 const adminPrisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL_MIGRATE });
 
-
 describe('withTenant (RLS Isolation)', () => {
   let acmeId = '';
   let betaId = '';
