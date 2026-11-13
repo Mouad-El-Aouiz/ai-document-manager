@@ -90,8 +90,20 @@ jobs:
       - name: Create pgvector extension
         run: psql "postgresql://postgres:postgres@localhost:5432/aidm" -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
+      - name: Setup aidm_app role
+        run: |
+          psql "postgresql://postgres:postgres@localhost:5432/aidm" -c "CREATE ROLE aidm_app WITH LOGIN PASSWORD 'password';"
+          psql "postgresql://postgres:postgres@localhost:5432/aidm" -c "GRANT USAGE ON SCHEMA public TO aidm_app;"
+          psql "postgresql://postgres:postgres@localhost:5432/aidm" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO aidm_app;"
+          
       - name: Apply Prisma migrations
         run: pnpm --filter @aidm/api db:migrate:deploy
+
+      - name: Apply RLS
+        run: pnpm --filter @aidm/api db:rls
+
+      - name: Seed database
+        run: pnpm --filter @aidm/api db:seed
 
       - name: Run tests with Vitest
         run: pnpm --filter @aidm/api test
