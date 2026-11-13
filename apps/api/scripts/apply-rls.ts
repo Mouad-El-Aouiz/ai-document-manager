@@ -18,9 +18,7 @@ if (!appUrl) {
 
 const parsedApp = new URL(appUrl);
 if (parsedApp.username !== 'aidm_app') {
-  throw new Error(
-    `DATABASE_URL must use user "aidm_app" (got "${parsedApp.username}")`,
-  );
+  throw new Error(`DATABASE_URL must use user "aidm_app" (got "${parsedApp.username}")`);
 }
 const appPassword = parsedApp.password;
 if (!appPassword) {

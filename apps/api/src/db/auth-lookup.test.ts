@@ -25,7 +25,7 @@ describe('authLookupUser (SECURITY DEFINER)', () => {
 
   it('should find an existing user by email', async () => {
     const user = await authLookupUser(appPrisma, 'alice@acme.com');
-    
+
     expect(user).not.toBeNull();
     expect(user?.role).toBe('ADMIN');
     expect(user?.passwordHash).toBeDefined();
