@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 
 const uuidSchema = z.string().uuid();
@@ -22,7 +22,7 @@ export async function withTenant<T>(
     // 3. Injection du contexte de sécurité (SET LOCAL équivalent)
     // Le 3ème paramètre `true` signifie que la configuration est locale à la transaction.
     await tx.$executeRaw`SELECT set_config('app.organization_id', ${parsedOrgId}, true)`;
-    
+
     // 4. Exécution de la logique métier
     return fn(tx);
   });

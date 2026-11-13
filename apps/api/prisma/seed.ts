@@ -22,28 +22,49 @@ async function main() {
     const alice = await tx.user.upsert({
       where: { email: 'alice@acme.com' },
       update: {},
-      create: { email: 'alice@acme.com', passwordHash: passwordHashAlice, role: 'ADMIN', organizationId: org.id },
+      create: {
+        email: 'alice@acme.com',
+        passwordHash: passwordHashAlice,
+        role: 'ADMIN',
+        organizationId: org.id,
+      },
     });
 
     await tx.user.upsert({
       where: { email: 'bob@acme.com' },
       update: {},
-      create: { email: 'bob@acme.com', passwordHash: passwordHashBob, role: 'EDITOR', organizationId: org.id },
+      create: {
+        email: 'bob@acme.com',
+        passwordHash: passwordHashBob,
+        role: 'EDITOR',
+        organizationId: org.id,
+      },
     });
 
     const contractsFolder = await tx.folder.upsert({
       where: { id: 'seed-folder-contracts' },
       update: {},
-      create: { id: 'seed-folder-contracts', name: 'Contrats', organizationId: org.id, createdById: alice.id },
+      create: {
+        id: 'seed-folder-contracts',
+        name: 'Contrats',
+        organizationId: org.id,
+        createdById: alice.id,
+      },
     });
 
     await tx.document.upsert({
       where: { id: 'seed-document-placeholder' },
       update: {},
       create: {
-        id: 'seed-document-placeholder', name: 'placeholder.pdf', mimeType: 'application/pdf',
-        sizeBytes: 0, storagePath: 'seed/placeholder.pdf', status: 'PENDING',
-        folderId: contractsFolder.id, organizationId: org.id, uploadedById: alice.id,
+        id: 'seed-document-placeholder',
+        name: 'placeholder.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 0,
+        storagePath: 'seed/placeholder.pdf',
+        status: 'PENDING',
+        folderId: contractsFolder.id,
+        organizationId: org.id,
+        uploadedById: alice.id,
       },
     });
 
@@ -57,17 +78,34 @@ async function main() {
     const charlie = await tx.user.upsert({
       where: { email: 'charlie@beta.com' },
       update: {},
-      create: { email: 'charlie@beta.com', passwordHash: passwordHashCharlie, role: 'ADMIN', organizationId: betaOrg.id },
+      create: {
+        email: 'charlie@beta.com',
+        passwordHash: passwordHashCharlie,
+        role: 'ADMIN',
+        organizationId: betaOrg.id,
+      },
     });
 
     await tx.folder.upsert({
       where: { id: 'seed-folder-beta' },
       update: {},
-      create: { id: 'seed-folder-beta', name: 'Dossier Beta', organizationId: betaOrg.id, createdById: charlie.id },
+      create: {
+        id: 'seed-folder-beta',
+        name: 'Dossier Beta',
+        organizationId: betaOrg.id,
+        createdById: charlie.id,
+      },
     });
 
     console.log('Seed completed: Acme Corp & Beta Corp ready.');
   });
 }
 
-main().catch((e) => { console.error(e); process.exit(1); }).finally(async () => { await prisma.$disconnect(); });
+main()
+  .catch((e: unknown) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

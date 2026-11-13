@@ -2,10 +2,15 @@ import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { withTenant } from './with-tenant.js';
 
-// Client avec le rôle aidm_app (RLS activée)
+// 1. Validation explicite pour satisfaire TypeScript (narrowing)
+if (!process.env.DATABASE_URL || !process.env.DATABASE_URL_MIGRATE) {
+  throw new Error('DATABASE_URL and DATABASE_URL_MIGRATE are required for integration tests');
+}
+
+// 2. Maintenant, TypeScript sait que ce sont des strings
 const appPrisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
-// Client avec le rôle aidm (superuser, bypass RLS) pour récupérer les IDs
 const adminPrisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL_MIGRATE });
+
 
 describe('withTenant (RLS Isolation)', () => {
   let acmeId = '';
@@ -17,7 +22,7 @@ describe('withTenant (RLS Isolation)', () => {
     const beta = await adminPrisma.organization.findUnique({ where: { slug: 'beta-corp' } });
     const betaUser = await adminPrisma.user.findUnique({ where: { email: 'charlie@beta.com' } });
     if (!acme || !beta || !betaUser) throw new Error('Seed missing');
-    
+
     acmeId = acme.id;
     betaId = beta.id;
     betaUserId = betaUser.id;
@@ -57,7 +62,7 @@ describe('withTenant (RLS Isolation)', () => {
         await tx.folder.create({
           data: {
             name: 'Hacked Folder',
-            organizationId: betaId, 
+            organizationId: betaId,
             createdById: betaUserId,
           },
         });
