@@ -77,3 +77,11 @@ $$;
 -- Sécurité : seul aidm_app peut exécuter cette fonction
 REVOKE ALL ON FUNCTION auth_lookup_user(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION auth_lookup_user(TEXT) TO aidm_app;
+
+
+-- ────────────────────────────────────────────────────────────────
+-- EXCLUSION EXPLICITE : "RefreshToken" n'est PAS sous RLS.
+-- Raison : le lookup de rotation se fait avant l'authentification.
+-- La sécurité repose sur le fait que le tokenHash (SHA-256) est
+-- à haute entropie (256 bits) et impossible à énumérer.
+-- ────────────────────────────────────────────────────────────────

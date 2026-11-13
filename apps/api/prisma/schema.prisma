@@ -39,6 +39,7 @@ model Organization {
   folders   Folder[]
   documents Document[]
   auditLogs AuditLog[]
+  refreshTokens RefreshToken[]
 }
 
 model User {
@@ -54,6 +55,7 @@ model User {
   folders      Folder[]     @relation("FolderCreatedBy")
   documents    Document[]   @relation("DocumentUploadedBy")
   auditLogs    AuditLog[]
+  refreshTokens RefreshToken[]
 
   @@index([organizationId])
 }
@@ -131,4 +133,24 @@ model AuditLog {
 
   @@index([organizationId, createdAt])
   @@index([userId])
+}
+
+model RefreshToken {
+  id             String    @id @default(uuid())
+  userId         String
+  organizationId String
+  familyId       String
+  tokenHash      String    @unique
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  revokedAt      DateTime?
+  userAgent      String?
+  ip             String?
+  createdAt      DateTime  @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
 }
