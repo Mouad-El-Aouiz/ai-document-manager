@@ -1,12 +1,14 @@
-import { randomBytes, createHash, randomUUID } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import type { PrismaClient, User } from '@prisma/client';
 import type { Env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
 
-export interface TokenPair {
-  accessToken: string;
+export type RefreshTokenUser = Pick<User, 'id' | 'organizationId'>;
+
+export interface RotationResult {
   refreshToken: string;
-  user: User;
+  userId: string;
+  organizationId: string;
 }
 
 export class RefreshTokenService {
@@ -30,22 +32,24 @@ export class RefreshTokenService {
 
     const value = parseInt(match[1] ?? '0', 10);
     const unit = match[2];
-
     const ms = unit === 'd' ? value * 86400000 : unit === 'h' ? value * 3600000 : value * 60000;
     return new Date(Date.now() + ms);
   }
 
-  async issueInitialToken(user: User, ip?: string, userAgent?: string): Promise<string> {
-    const familyId = randomUUID();
+  async issueInitialToken(
+    user: RefreshTokenUser,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<string> {
+    const familyId = crypto.randomUUID();
     return this.createTokenRecord(user, familyId, ip, userAgent);
   }
 
-  async rotateToken(rawToken: string, ip?: string, userAgent?: string): Promise<TokenPair> {
+  async rotateToken(rawToken: string, ip?: string, userAgent?: string): Promise<RotationResult> {
     const tokenHash = this.hashToken(rawToken);
 
     const storedToken = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
-      include: { user: true },
     });
 
     if (!storedToken) {
@@ -67,16 +71,16 @@ export class RefreshTokenService {
     });
 
     const newRawToken = await this.createTokenRecord(
-      storedToken.user,
+      { id: storedToken.userId, organizationId: storedToken.organizationId },
       storedToken.familyId,
       ip,
       userAgent,
     );
 
     return {
-      accessToken: '',
       refreshToken: newRawToken,
-      user: storedToken.user,
+      userId: storedToken.userId,
+      organizationId: storedToken.organizationId,
     };
   }
 
@@ -96,7 +100,7 @@ export class RefreshTokenService {
   }
 
   private async createTokenRecord(
-    user: User,
+    user: RefreshTokenUser,
     familyId: string,
     ip?: string,
     userAgent?: string,
@@ -111,8 +115,8 @@ export class RefreshTokenService {
         familyId,
         tokenHash,
         expiresAt: this.calculateExpiry(),
-        ip: ip ?? null, // <-- Correction TS
-        userAgent: userAgent ?? null, // <-- Correction TS
+        ip: ip ?? null,
+        userAgent: userAgent ?? null,
       },
     });
 
