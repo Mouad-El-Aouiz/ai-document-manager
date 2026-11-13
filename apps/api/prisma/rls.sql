@@ -43,3 +43,37 @@ CREATE POLICY tenant_isolation ON "AuditLog"
 
 -- Immuabilité de l'audit
 REVOKE UPDATE, DELETE ON "AuditLog" FROM aidm_app;
+
+
+-- ────────────────────────────────────────────────────────────────
+-- Fonction de lookup d'authentification
+-- ────────────────────────────────────────────────────────────────
+-- Cette fonction s'exécute avec les droits du superuser (aidm) pour
+-- contourner la RLS de manière contrôlée. Elle ne retourne que les
+-- informations strictement nécessaires au login.
+CREATE OR REPLACE FUNCTION auth_lookup_user(p_email TEXT)
+RETURNS TABLE (
+  id TEXT,
+  organization_id TEXT,
+  password_hash TEXT,
+  role TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    u.id, 
+    u."organizationId", 
+    u."passwordHash", 
+    u.role::TEXT
+  FROM "User" u
+  WHERE u.email = lower(p_email);
+END;
+$$;
+
+-- Sécurité : seul aidm_app peut exécuter cette fonction
+REVOKE ALL ON FUNCTION auth_lookup_user(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION auth_lookup_user(TEXT) TO aidm_app;
