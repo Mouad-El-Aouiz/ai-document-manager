@@ -103,3 +103,35 @@ docs/adr/    Une décision = un fichier
 
 3 jobs parallèles sur chaque PR vers main : lint, test (Postgres en
 service), docker (compose up --wait). Voir ADR-0002.
+
+## API (Phase 4)
+
+### Endpoints
+
+| Méthode | Route                  | Auth   | Description                          |
+| ------- | ---------------------- | ------ | ------------------------------------ |
+| `GET`   | `/health`              | —      | Readiness (Postgres + Redis)         |
+| `GET`   | `/health/live`         | —      | Liveness (process)                   |
+| `POST`  | `/api/v1/auth/login`   | —      | Login (body : `{ email, password }`) |
+| `POST`  | `/api/v1/auth/refresh` | Cookie | Rotation du refresh token            |
+| `POST`  | `/api/v1/auth/logout`  | Cookie | Révocation du refresh token          |
+| `GET`   | `/api/v1/auth/me`      | Bearer | Utilisateur courant                  |
+| `GET`   | `/api/v1/folders`      | Bearer | Dossiers de l'organisation           |
+| `GET`   | `/api/v1/docs`         | —      | OpenAPI (JSON)                       |
+| `GET`   | `/api/v1/docs/ui`      | —      | Swagger UI (dev uniquement)          |
+
+### Démarrage local
+
+```bash
+pnpm --filter @aidm/api dev
+# → http://localhost:3000
+# → http://localhost:3000/api/v1/docs/ui (Swagger)
+
+**Docker**
+docker build -f apps/api/Dockerfile -t aidm-api .
+docker run -p 3000:3000 --env-file .env aidm-api
+
+**Tests**
+pnpm --filter @aidm/api test          # 49 tests
+pnpm --filter @aidm/api test -- --coverage
+```
