@@ -11,6 +11,10 @@ const envSchema = z.object({
   REFRESH_TOKEN_TTL: z.string().default('7d'),
   CORS_ORIGINS: z.string().transform((val) => val.split(',').map((o) => o.trim())),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  // Ajouter dans envSchema
+  ARGON2_MEMORY_COST: z.coerce.number().int().min(4096).default(19456), // 19 MiB
+  ARGON2_TIME_COST: z.coerce.number().int().min(1).default(2),
+  ARGON2_PARALLELISM: z.coerce.number().int().min(1).default(1),
 });
 
 export type Env = z.infer<typeof envSchema>;
