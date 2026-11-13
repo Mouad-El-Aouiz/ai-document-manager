@@ -35,9 +35,7 @@ describe('authenticate middleware', () => {
   });
 
   it('should return 401 if the token is invalid', async () => {
-    const res = await request(app)
-      .get('/protected')
-      .set('Authorization', 'Bearer invalid-token');
+    const res = await request(app).get('/protected').set('Authorization', 'Bearer invalid-token');
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe('UNAUTHENTICATED');
   });
@@ -49,9 +47,7 @@ describe('authenticate middleware', () => {
       role: 'EDITOR',
     });
 
-    const res = await request(app)
-      .get('/protected')
-      .set('Authorization', `Bearer ${token}`);
+    const res = await request(app).get('/protected').set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.auth).toEqual({

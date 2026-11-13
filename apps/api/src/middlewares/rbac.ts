@@ -16,8 +16,7 @@ export function requirePermission(permission: string) {
     }
 
     const userPermissions = ROLE_PERMISSIONS[req.auth.role] ?? [];
-    const hasPermission =
-      userPermissions.includes('*') || userPermissions.includes(permission);
+    const hasPermission = userPermissions.includes('*') || userPermissions.includes(permission);
 
     if (!hasPermission) {
       next(new AppError(403, 'FORBIDDEN', 'Insufficient permissions'));
