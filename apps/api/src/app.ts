@@ -16,6 +16,8 @@ import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { AuthController } from './controllers/auth.controller.js';
 import { AuthService } from './services/auth.service.js';
+import { FolderController } from './controllers/folder.controller.js';
+import { foldersRouter } from './routes/folders.js';
 
 export interface AppDependencies {
   env: Env;
@@ -58,6 +60,9 @@ export function createApp(deps: AppDependencies): Express {
 
   // Routes d'authentification
   app.use('/api/v1/auth', authRouter(authController, deps.redis, deps.env));
+
+  const folderController = new FolderController();
+  app.use('/api/v1/folders', foldersRouter(folderController, deps.env, deps.prisma));
 
   // Route de test pour la validation (peut être supprimée plus tard)
   app.post(
