@@ -6,6 +6,8 @@ import { parseEnv } from './config/env.js';
 import { createLogger } from './infra/logger.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { requestContext } from './middlewares/request-context.js';
+import type { PrismaClient } from './infra/prisma.js';
+import type { Redis } from './infra/redis.js';
 
 describe('App Error Handling & Validation', () => {
   const env = parseEnv({
@@ -20,7 +22,11 @@ describe('App Error Handling & Validation', () => {
   const logger = createLogger(env);
   logger.level = 'silent';
 
-  const app = createApp({ env, logger });
+  // Mocks simples pour satisfaire le type de AppDependencies
+  const mockPrisma = {} as PrismaClient;
+  const mockRedis = {} as Redis;
+
+  const app = createApp({ env, logger, prisma: mockPrisma, redis: mockRedis });
 
   it('should return 200 for the root route', async () => {
     const res = await request(app).get('/');
@@ -43,7 +49,7 @@ describe('App Error Handling & Validation', () => {
   it('should return 404 with standard format for unknown routes', async () => {
     const res = await request(app).get('/unknown-route');
 
-    expect(res.status).toBe(404); // Maintenant correctement géré
+    expect(res.status).toBe(404);
     expect(res.body.error).toMatchObject({
       code: 'NOT_FOUND',
       message: 'Route not found',
@@ -51,16 +57,13 @@ describe('App Error Handling & Validation', () => {
   });
 
   it('should return 500 without stack trace on unexpected error', async () => {
-    // On crée une mini-application Express isolée juste pour tester le errorHandler
     const crashApp = express();
     crashApp.use(requestContext());
 
-    // Route qui crash
     crashApp.get('/crash', () => {
       throw new Error('Secret database error');
     });
 
-    // Notre middleware d'erreur
     crashApp.use(errorHandler(logger));
 
     const res = await request(crashApp).get('/crash');

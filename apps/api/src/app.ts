@@ -9,10 +9,15 @@ import { errorHandler } from './middlewares/error-handler.js';
 import { validate } from './middlewares/validate.js';
 import { z } from 'zod';
 import { AppError } from './errors/AppError.js';
+import type { PrismaClient } from './infra/prisma.js';
+import type { Redis } from './infra/redis.js';
+import { healthRouter } from './routes/health.js';
 
 export interface AppDependencies {
   env: Env;
   logger: Logger;
+  prisma: PrismaClient;
+  redis: Redis;
 }
 
 const testSchema = z.object({
@@ -35,6 +40,9 @@ export function createApp(deps: AppDependencies): Express {
   app.use(helmet());
   app.use(cors({ origin: deps.env.CORS_ORIGINS }));
   app.use(express.json({ limit: '1mb' }));
+
+  // Health (AVANT tout middleware d'auth futur)
+  app.use(healthRouter(deps.prisma, deps.redis));
 
   // 3. Routes
   app.get('/', (_req, res) => {
