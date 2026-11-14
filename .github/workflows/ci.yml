@@ -69,7 +69,9 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aidm?schema=public
+      # On utilise aidm_app pour l'API (soumis à la RLS)
+      DATABASE_URL: postgresql://aidm_app:password@localhost:5432/aidm?schema=public
+      # On utilise postgres pour les migrations, la RLS et le seed
       DATABASE_URL_MIGRATE: postgresql://postgres:postgres@localhost:5432/aidm?schema=public
       REDIS_URL: redis://localhost:6379
       S3_ENDPOINT: http://localhost:9000
@@ -79,7 +81,7 @@ jobs:
       S3_BUCKET: aidm-documents
       S3_REGION: us-east-1
       USE_REAL_S3_IN_TESTS: 'true'
-      # Chaînes de 32 caractères valides (remplace 'a'.repeat(32))
+      # Chaînes de 32 caractères valides pour Zod (évite l'erreur YAML)
       JWT_ACCESS_SECRET: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
       JWT_REFRESH_SECRET: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
       CORS_ORIGINS: 'http://localhost:3000'
