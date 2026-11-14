@@ -61,13 +61,14 @@ model User {
 }
 
 model Folder {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   parentId       String?
   organizationId String
   createdById    String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
   parent       Folder?      @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   children     Folder[]     @relation("FolderHierarchy")
@@ -77,6 +78,7 @@ model Folder {
 
   @@index([organizationId])
   @@index([parentId])
+  @@index([organizationId, parentId])
 }
 
 model Document {

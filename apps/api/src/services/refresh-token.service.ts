@@ -2,13 +2,12 @@ import { randomBytes, createHash } from 'node:crypto';
 import type { PrismaClient, User } from '@prisma/client';
 import type { Env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
+import { withTenant } from '../db/with-tenant.js';
 
-export type RefreshTokenUser = Pick<User, 'id' | 'organizationId'>;
-
-export interface RotationResult {
+export interface TokenPair {
+  accessToken: string;
   refreshToken: string;
-  userId: string;
-  organizationId: string;
+  user: User;
 }
 
 export class RefreshTokenService {
@@ -32,20 +31,17 @@ export class RefreshTokenService {
 
     const value = parseInt(match[1] ?? '0', 10);
     const unit = match[2];
+
     const ms = unit === 'd' ? value * 86400000 : unit === 'h' ? value * 3600000 : value * 60000;
     return new Date(Date.now() + ms);
   }
 
-  async issueInitialToken(
-    user: RefreshTokenUser,
-    ip?: string,
-    userAgent?: string,
-  ): Promise<string> {
+  async issueInitialToken(user: User, ip?: string, userAgent?: string): Promise<string> {
     const familyId = crypto.randomUUID();
     return this.createTokenRecord(user, familyId, ip, userAgent);
   }
 
-  async rotateToken(rawToken: string, ip?: string, userAgent?: string): Promise<RotationResult> {
+  async rotateToken(rawToken: string, ip?: string, userAgent?: string): Promise<TokenPair> {
     const tokenHash = this.hashToken(rawToken);
 
     const storedToken = await this.prisma.refreshToken.findUnique({
@@ -65,22 +61,26 @@ export class RefreshTokenService {
       throw new AppError(401, 'UNAUTHENTICATED', 'Refresh token expired');
     }
 
+    // Récupération de l'utilisateur via withTenant pour respecter la RLS
+    const user = await withTenant(this.prisma, storedToken.organizationId, (tx) =>
+      tx.user.findUnique({ where: { id: storedToken.userId } }),
+    );
+
+    if (!user) {
+      throw new AppError(401, 'UNAUTHENTICATED', 'User not found');
+    }
+
     await this.prisma.refreshToken.update({
       where: { id: storedToken.id },
       data: { consumedAt: new Date() },
     });
 
-    const newRawToken = await this.createTokenRecord(
-      { id: storedToken.userId, organizationId: storedToken.organizationId },
-      storedToken.familyId,
-      ip,
-      userAgent,
-    );
+    const newRawToken = await this.createTokenRecord(user, storedToken.familyId, ip, userAgent);
 
     return {
+      accessToken: '',
       refreshToken: newRawToken,
-      userId: storedToken.userId,
-      organizationId: storedToken.organizationId,
+      user,
     };
   }
 
@@ -100,7 +100,7 @@ export class RefreshTokenService {
   }
 
   private async createTokenRecord(
-    user: RefreshTokenUser,
+    user: User,
     familyId: string,
     ip?: string,
     userAgent?: string,
