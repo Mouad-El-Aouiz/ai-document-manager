@@ -80,8 +80,8 @@ jobs:
       S3_BUCKET: aidm-documents
       S3_REGION: us-east-1
       USE_REAL_S3_IN_TESTS: 'true'
-      JWT_ACCESS_SECRET: 'a'.repeat(32)
-      JWT_REFRESH_SECRET: 'b'.repeat(32)
+      JWT_ACCESS_SECRET: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      JWT_REFRESH_SECRET: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
       CORS_ORIGINS: 'http://localhost:3000'
     steps:
       - name: Checkout
