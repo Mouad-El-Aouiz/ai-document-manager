@@ -15,6 +15,16 @@ const envSchema = z.object({
   ARGON2_MEMORY_COST: z.coerce.number().int().min(4096).default(19456), // 19 MiB
   ARGON2_TIME_COST: z.coerce.number().int().min(1).default(2),
   ARGON2_PARALLELISM: z.coerce.number().int().min(1).default(1),
+  // S3 / MinIO
+  S3_ENDPOINT: z.string().url().default('http://minio:9000'),
+  S3_PUBLIC_ENDPOINT: z.string().url().default('http://localhost:9000'),
+  S3_ACCESS_KEY: z.string().default('aidm_admin'),
+  S3_SECRET_KEY: z.string().default('change_me_in_dev'),
+  S3_BUCKET: z.string().default('aidm-documents'),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_UPLOAD_TTL_SECONDS: z.coerce.number().int().positive().default(600),
+  S3_DOWNLOAD_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  USE_REAL_S3_IN_TESTS: z.coerce.boolean().default(false),
 });
 
 export type Env = z.infer<typeof envSchema>;
