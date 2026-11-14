@@ -3,6 +3,7 @@ export type ErrorCode =
   | 'UNAUTHENTICATED'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
+  | 'BAD_REQUEST'
   | 'CONFLICT'
   | 'RATE_LIMITED'
   | 'INTERNAL_ERROR';

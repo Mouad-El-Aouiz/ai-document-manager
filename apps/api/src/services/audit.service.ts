@@ -10,7 +10,8 @@ export type AuditAction =
   | 'LOGOUT'
   | 'FOLDER_CREATE'
   | 'FOLDER_UPDATE'
-  | 'FOLDER_DELETE';
+  | 'FOLDER_DELETE'
+  | 'FOLDER_MOVE';
 
 export interface AuditEvent {
   action: AuditAction;
