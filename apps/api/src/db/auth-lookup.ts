@@ -15,10 +15,6 @@ const authUserSchema = z.object({
   role: z.string(),
 });
 
-/**
- * Recherche un utilisateur par son email en contournant la RLS via une fonction SECURITY DEFINER.
- * Retourne null si l'utilisateur n'existe pas.
- */
 export async function authLookupUser(
   prisma: PrismaClient,
   email: string,
@@ -30,15 +26,10 @@ export async function authLookupUser(
     FROM auth_lookup_user(${normalizedEmail})
   `;
 
-  if (rows.length === 0) {
-    return null;
-  }
+  if (rows.length === 0) return null;
 
-  // Validation du résultat (défense en profondeur, même si la DB est de confiance)
   const parsed = authUserSchema.safeParse(rows[0]);
-  if (!parsed.success) {
-    throw new Error('Invalid user record returned by auth_lookup_user');
-  }
+  if (!parsed.success) throw new Error('Invalid user record returned by auth_lookup_user');
 
   return {
     id: parsed.data.id,

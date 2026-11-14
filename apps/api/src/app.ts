@@ -17,6 +17,8 @@ import { authRouter } from './routes/auth.js';
 import { AuthController } from './controllers/auth.controller.js';
 import { AuthService } from './services/auth.service.js';
 import { FolderController } from './controllers/folder.controller.js';
+import { FolderService } from './services/folder.service.js';
+import { AuditService } from './services/audit.service.js';
 import { foldersRouter } from './routes/folders.js';
 import { docsRouter } from './routes/docs.js';
 
@@ -44,7 +46,7 @@ export function createApp(deps: AppDependencies): Express {
     helmet({
       contentSecurityPolicy:
         deps.env.NODE_ENV === 'production'
-          ? true // Utilise la CSP par défaut de Helmet en prod
+          ? true
           : {
               directives: {
                 defaultSrc: ["'self'"],
@@ -60,42 +62,43 @@ export function createApp(deps: AppDependencies): Express {
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
 
-  // 3. Health (AVANT tout middleware d'auth)
+  // 3. Health
   app.use(healthRouter(deps.prisma, deps.redis));
 
   // 4. Services & Controllers
   const authService = new AuthService(deps.prisma, deps.env, deps.logger);
   const authController = new AuthController(authService, deps.env);
-  const folderController = new FolderController();
+
+  const auditService = new AuditService(deps.prisma, deps.logger);
+  const folderService = new FolderService(auditService);
+  const folderController = new FolderController(folderService);
 
   // 5. Routes
   app.get('/', (_req, res) => {
     res.json({ message: 'API is running', env: deps.env.NODE_ENV });
   });
 
-  // Routes d'authentification
-  app.use('/api/v1/auth', authRouter(authController, deps.redis, deps.env));
-
-  app.use('/api/v1/folders', foldersRouter(folderController, deps.env, deps.prisma));
-
-  app.use('/api/v1', docsRouter(deps.env));
-
-  // Route de test pour la validation (peut être supprimée plus tard)
   app.post(
     '/test-validation',
     validate({ body: z.object({ name: z.string().min(3) }) }),
     (req, res) => {
-      // Cast explicite pour satisfaire ESLint (req.body est `any` par défaut dans Express)
-      res.json({ received: req.body as unknown });
+      // Le middleware `validate` a déjà parsé et remplacé req.body par un objet typé.
+      // On cast pour satisfaire ESLint (req.body est typé any dans les types Express).
+      const body = req.body as { name: string };
+      res.json({ received: body });
     },
   );
+
+  app.use('/api/v1/auth', authRouter(authController, deps.redis, deps.env));
+  app.use('/api/v1/folders', foldersRouter(folderController, deps.env, deps.prisma));
+  app.use('/api/v1', docsRouter(deps.env));
 
   // 6. 404 Handler
   app.use((_req, _res, next) => {
     next(new AppError(404, 'NOT_FOUND', 'Route not found'));
   });
 
-  // 7. Error Handler global
+  // 7. Error Handler
   app.use(errorHandler(deps.logger));
 
   return app;

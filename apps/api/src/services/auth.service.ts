@@ -1,13 +1,12 @@
 import type { PrismaClient } from '@prisma/client';
 import type { Env } from '../config/env.js';
-import type { Logger } from 'pino';
 import { PasswordService } from './password.service.js';
 import { TokenService } from './token.service.js';
 import { RefreshTokenService } from './refresh-token.service.js';
 import { AuditService } from './audit.service.js';
 import { authLookupUser } from '../db/auth-lookup.js';
-import { withTenant } from '../db/with-tenant.js';
 import { AppError } from '../errors/AppError.js';
+import type { Logger } from 'pino';
 
 export interface LoginResult {
   accessToken: string;
@@ -60,18 +59,23 @@ export class AuthService {
       role: user.role as 'ADMIN' | 'EDITOR' | 'VIEWER',
     });
 
-    const refreshToken = await this.refreshTokenService.issueInitialToken(
-      { id: user.id, organizationId: user.organizationId },
-      ip,
-      userAgent,
-    );
+    const fullUser = {
+      id: user.id,
+      organizationId: user.organizationId,
+      email,
+      passwordHash: user.passwordHash,
+      role: user.role as 'ADMIN' | 'EDITOR' | 'VIEWER',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const refreshToken = await this.refreshTokenService.issueInitialToken(fullUser, ip, userAgent);
 
     await this.auditService.log('LOGIN_SUCCESS', user.organizationId, user.id, { ip });
 
     return {
       accessToken,
       refreshToken,
-      user: { id: user.id, email, role: user.role },
+      user: { id: user.id, email: email, role: user.role },
     };
   }
 
@@ -80,23 +84,15 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const rotated = await this.refreshTokenService.rotateToken(rawRefreshToken, ip, userAgent);
-
-    const user = await withTenant(this.prisma, rotated.organizationId, (tx) =>
-      tx.user.findUnique({ where: { id: rotated.userId } }),
-    );
-
-    if (!user) {
-      throw new AppError(401, 'UNAUTHENTICATED', 'User not found');
-    }
+    const result = await this.refreshTokenService.rotateToken(rawRefreshToken, ip, userAgent);
 
     const accessToken = await this.tokenService.signAccessToken({
-      sub: user.id,
-      org: user.organizationId,
-      role: user.role,
+      sub: result.user.id,
+      org: result.user.organizationId,
+      role: result.user.role,
     });
 
-    return { accessToken, refreshToken: rotated.refreshToken };
+    return { accessToken, refreshToken: result.refreshToken };
   }
 
   async logout(rawRefreshToken: string): Promise<void> {
@@ -107,9 +103,9 @@ export class AuthService {
     userId: string,
     organizationId: string,
   ): Promise<{ id: string; email: string; role: string }> {
-    const user = await withTenant(this.prisma, organizationId, (tx) =>
-      tx.user.findUnique({ where: { id: userId } }),
-    );
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId },
+    });
     if (!user) {
       throw new AppError(404, 'NOT_FOUND', 'User not found');
     }

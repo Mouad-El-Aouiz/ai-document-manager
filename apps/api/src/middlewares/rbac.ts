@@ -4,7 +4,7 @@ import { AppError } from '../errors/AppError.js';
 // Mapping centralisé des permissions par rôle
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   ADMIN: ['*'], // Wildcard : toutes les permissions
-  EDITOR: ['folder:read', 'folder:write', 'document:read', 'document:write'],
+  EDITOR: ['folder:read', 'folder:create', 'folder:update', 'document:read', 'document:write'],
   VIEWER: ['folder:read', 'document:read'],
 };
 
