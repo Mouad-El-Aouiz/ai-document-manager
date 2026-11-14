@@ -205,4 +205,119 @@ describe('Folders CRUD (E2E)', () => {
 
     expect(res.status).toBe(403);
   });
+
+  // ... (imports et setup existants)
+
+  it('should return breadcrumb for a nested folder', async () => {
+    const rootRes = await request(app)
+      .post('/api/v1/folders')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ name: 'Root' });
+    const rootId = (rootRes.body as FolderResponse).folder.id;
+
+    const childRes = await request(app)
+      .post('/api/v1/folders')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ name: 'Child', parentId: rootId });
+    const childId = (childRes.body as FolderResponse).folder.id;
+
+    const res = await request(app)
+      .get(`/api/v1/folders/${childId}/breadcrumb`)
+      .set('Authorization', `Bearer ${aliceToken}`);
+
+    expect(res.status).toBe(200);
+    const breadcrumb = (res.body as { breadcrumb: { id: string; name: string }[] }).breadcrumb;
+    expect(breadcrumb).toHaveLength(2);
+    expect(breadcrumb[0]?.name).toBe('Root');
+    expect(breadcrumb[1]?.name).toBe('Child');
+  });
+
+  it('should prevent creating a cycle by moving a folder into its descendant', async () => {
+    const aRes = await request(app)
+      .post('/api/v1/folders')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ name: 'Folder A' });
+    const aId = (aRes.body as FolderResponse).folder.id;
+
+    const bRes = await request(app)
+      .post('/api/v1/folders')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ name: 'Folder B', parentId: aId });
+    const bId = (bRes.body as FolderResponse).folder.id;
+
+    const res = await request(app)
+      .patch(`/api/v1/folders/${aId}/move`)
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ parentId: bId });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toContain('Cannot move a folder into its own descendant');
+  });
+
+  it('should move a folder to root', async () => {
+    const parentRes = await request(app)
+      .post('/api/v1/folders')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ name: 'Parent' });
+    const parentId = (parentRes.body as FolderResponse).folder.id;
+
+    const childRes = await request(app)
+      .post('/api/v1/folders')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ name: 'Child Move', parentId });
+    const childId = (childRes.body as FolderResponse).folder.id;
+
+    const moveRes = await request(app)
+      .patch(`/api/v1/folders/${childId}/move`)
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ parentId: null });
+
+    expect(moveRes.status).toBe(200);
+    expect((moveRes.body as FolderResponse).folder.parentId).toBeNull();
+  });
+
+  it('should cascade soft delete to children and documents', async () => {
+    const parentRes = await request(app)
+      .post('/api/v1/folders')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ name: 'Parent Delete' });
+    const parentId = (parentRes.body as FolderResponse).folder.id;
+
+    const childRes = await request(app)
+      .post('/api/v1/folders')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ name: 'Child Delete', parentId });
+    const childId = (childRes.body as FolderResponse).folder.id;
+
+    // Créer un document bidon dans l'enfant via adminPrisma (car la route upload n'existe pas encore)
+    const aliceUser = await adminPrisma.user.findUniqueOrThrow({
+      where: { email: 'alice@acme.com' },
+    });
+    await adminPrisma.document.create({
+      data: {
+        name: 'doc.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 100,
+        storagePath: 'path',
+        folderId: childId,
+        organizationId: aliceOrgId,
+        uploadedById: aliceUser.id,
+      },
+    });
+
+    const deleteRes = await request(app)
+      .delete(`/api/v1/folders/${parentId}`)
+      .set('Authorization', `Bearer ${aliceToken}`);
+
+    expect(deleteRes.status).toBe(204);
+
+    // Vérifier en base que tout est soft-deleted
+    const dbParent = await adminPrisma.folder.findUnique({ where: { id: parentId } });
+    const dbChild = await adminPrisma.folder.findUnique({ where: { id: childId } });
+    const dbDoc = await adminPrisma.document.findFirst({ where: { folderId: childId } });
+
+    expect(dbParent?.deletedAt).not.toBeNull();
+    expect(dbChild?.deletedAt).not.toBeNull();
+    expect(dbDoc?.deletedAt).not.toBeNull();
+  });
 });

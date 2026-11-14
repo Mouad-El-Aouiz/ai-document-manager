@@ -1,19 +1,19 @@
 import type { Folder } from '@prisma/client';
 import type { TenantTx } from '../db/with-tenant.js';
-import { folderRepository } from '../repositories/folder.repository.js';
+import { folderRepository, type BreadcrumbRow } from '../repositories/folder.repository.js';
 import { AppError } from '../errors/AppError.js';
 import type { AuditService } from './audit.service.js';
 
 export interface CreateFolderInput {
   name: string;
-  parentId?: string | null | undefined;
+  parentId?: string | null;
 }
 
 export class FolderService {
   constructor(private readonly auditService: AuditService) {}
 
   async listAll(tx: TenantTx, parentId?: string | null): Promise<Folder[]> {
-    return folderRepository.findAll(tx, { parentId });
+    return folderRepository.findAll(tx, parentId);
   }
 
   async getById(tx: TenantTx, id: string): Promise<Folder> {
@@ -24,6 +24,11 @@ export class FolderService {
     return folder;
   }
 
+  async getBreadcrumb(tx: TenantTx, id: string): Promise<BreadcrumbRow[]> {
+    await this.getById(tx, id);
+    return folderRepository.getBreadcrumb(tx, id);
+  }
+
   async create(
     tx: TenantTx,
     input: CreateFolderInput,
@@ -31,9 +36,15 @@ export class FolderService {
     userId: string,
   ): Promise<Folder> {
     if (input.parentId) {
-      const parent = await folderRepository.findById(tx, input.parentId);
+      const parentId: string = input.parentId;
+      const parent = await folderRepository.findById(tx, parentId);
       if (!parent) {
         throw new AppError(404, 'NOT_FOUND', 'Parent folder not found');
+      }
+
+      const parentBreadcrumb = await folderRepository.getBreadcrumb(tx, parentId);
+      if (parentBreadcrumb.length > 10) {
+        throw new AppError(400, 'BAD_REQUEST', 'Maximum folder depth exceeded');
       }
     }
 
@@ -104,9 +115,71 @@ export class FolderService {
     return updated;
   }
 
+  async move(
+    tx: TenantTx,
+    id: string,
+    newParentId: string | null,
+    orgId: string,
+    userId: string,
+  ): Promise<Folder> {
+    await folderRepository.lockFolder(tx, id);
+    const folder = await this.getById(tx, id);
+
+    if (newParentId === id) {
+      throw new AppError(400, 'BAD_REQUEST', 'Cannot move a folder into itself');
+    }
+
+    if (newParentId !== null) {
+      const parentId: string = newParentId;
+      const newParent = await folderRepository.findById(tx, parentId);
+      if (!newParent) {
+        throw new AppError(404, 'NOT_FOUND', 'New parent folder not found');
+      }
+
+      const isCycle = await folderRepository.isDescendant(tx, id, parentId);
+      if (isCycle) {
+        throw new AppError(400, 'BAD_REQUEST', 'Cannot move a folder into its own descendant');
+      }
+
+      const maxSubtreeDepth = await folderRepository.getMaxSubtreeDepth(tx, id);
+      const parentBreadcrumb = await folderRepository.getBreadcrumb(tx, parentId);
+      const newParentDepth = parentBreadcrumb.length;
+
+      if (newParentDepth + 1 + maxSubtreeDepth > 10) {
+        throw new AppError(400, 'BAD_REQUEST', 'Maximum folder depth exceeded');
+      }
+    }
+
+    const existing = await tx.folder.findFirst({
+      where: {
+        organizationId: orgId,
+        parentId: newParentId,
+        name: { equals: folder.name, mode: 'insensitive' },
+        deletedAt: null,
+        id: { not: id },
+      },
+    });
+    if (existing) {
+      throw new AppError(409, 'CONFLICT', 'A folder with this name already exists here');
+    }
+
+    const updated = await folderRepository.update(tx, id, { parentId: newParentId });
+
+    await this.auditService.record(tx, {
+      action: 'FOLDER_MOVE',
+      entityType: 'Folder',
+      entityId: id,
+      organizationId: orgId,
+      actorId: userId,
+      metadata: { from: folder.parentId, to: newParentId },
+    });
+
+    return updated;
+  }
+
   async softDelete(tx: TenantTx, id: string, orgId: string, userId: string): Promise<void> {
     await this.getById(tx, id);
-    await folderRepository.softDelete(tx, id);
+    await folderRepository.cascadeSoftDelete(tx, id);
 
     await this.auditService.record(tx, {
       action: 'FOLDER_DELETE',

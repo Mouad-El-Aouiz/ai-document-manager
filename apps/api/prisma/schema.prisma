@@ -93,6 +93,7 @@ model Document {
   uploadedById   String
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?      // AJOUT
 
   folder       Folder?         @relation(fields: [folderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)

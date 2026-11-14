@@ -28,12 +28,24 @@ export function foldersRouter(
     validate({ params: folderParamsSchema }),
     controller.get.bind(controller),
   );
+  router.get(
+    '/:id/breadcrumb',
+    requirePermission('folder:read'),
+    validate({ params: folderParamsSchema }),
+    controller.breadcrumb.bind(controller),
+  );
   router.post('/', requirePermission('folder:create'), controller.create.bind(controller));
   router.patch(
     '/:id',
     requirePermission('folder:update'),
     validate({ params: folderParamsSchema }),
     controller.update.bind(controller),
+  );
+  router.patch(
+    '/:id/move',
+    requirePermission('folder:update'),
+    validate({ params: folderParamsSchema }),
+    controller.move.bind(controller),
   );
   router.delete(
     '/:id',
