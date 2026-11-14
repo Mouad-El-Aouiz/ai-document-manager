@@ -41,6 +41,8 @@ jobs:
 
       - name: Typecheck with tsc
         run: pnpm typecheck
+  
+
   test:
     name: Tests
     runs-on: ubuntu-latest
@@ -67,28 +69,10 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
-      minio:
-        image: pgsty/silo:latest
-        env:
-          MINIO_ROOT_USER: aidm_admin
-          MINIO_ROOT_PASSWORD: change_me_in_dev
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "silo healthcheck ready"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
-      # IMPORTANT : l'API utilise aidm_app pour subir la RLS
-      DATABASE_URL: postgresql://aidm_app:password@localhost:5432/aidm?schema=public
-      # Les migrations, le seed et l'admin utilisent postgres
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aidm?schema=public
       DATABASE_URL_MIGRATE: postgresql://postgres:postgres@localhost:5432/aidm?schema=public
       REDIS_URL: redis://localhost:6379
-      JWT_ACCESS_SECRET: dev_access_secret_that_is_at_least_32_chars_long
-      JWT_REFRESH_SECRET: dev_refresh_secret_that_is_at_least_32_chars_long
-      CORS_ORIGINS: http://localhost:3000
-      LOG_LEVEL: error
       S3_ENDPOINT: http://localhost:9000
       S3_PUBLIC_ENDPOINT: http://localhost:9000
       S3_ACCESS_KEY: aidm_admin
@@ -96,6 +80,9 @@ jobs:
       S3_BUCKET: aidm-documents
       S3_REGION: us-east-1
       USE_REAL_S3_IN_TESTS: 'true'
+      JWT_ACCESS_SECRET: 'a'.repeat(32)
+      JWT_REFRESH_SECRET: 'b'.repeat(32)
+      CORS_ORIGINS: 'http://localhost:3000'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -127,14 +114,42 @@ jobs:
       - name: Apply RLS
         run: pnpm --filter @aidm/api db:rls
 
-      - name: Setup Storage Bucket
-        run: pnpm --filter @aidm/api storage:setup
-
       - name: Seed database
         run: pnpm --filter @aidm/api db:seed
 
+      # ── REMPLACEMENT DU SERVICE MINIO PAR UN STEP DOCKER RUN ──
+      - name: Start Silo (MinIO fork) for S3 integration tests
+        run: |
+          docker run -d \
+            --name aidm-silo \
+            -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER=aidm_admin \
+            -e MINIO_ROOT_PASSWORD=change_me_in_dev \
+            pgsty/silo:latest \
+            server /data --console-address ":9001"
+          
+          # Attendre que Silo soit prêt (max 30s)
+          echo "Waiting for Silo to be ready..."
+          for i in $(seq 1 30); do
+            if curl -f http://localhost:9000/minio/health/live > /dev/null 2>&1; then
+              echo "Silo is ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Silo failed to start in time"
+          docker logs aidm-silo
+          exit 1
+
+      - name: Setup Storage Bucket
+        run: pnpm --filter @aidm/api storage:setup
+
       - name: Run tests with Vitest
         run: pnpm --filter @aidm/api test
+
+      - name: Cleanup Silo
+        if: always()
+        run: docker rm -f aidm-silo
   docker:
     name: Docker Compose up
     runs-on: ubuntu-latest
