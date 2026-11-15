@@ -21,6 +21,15 @@ enum DocumentStatus {
   ERROR
 }
 
+enum DocumentVersionStatus {
+  PENDING_UPLOAD
+  UPLOADED
+  SCANNING
+  PROCESSING
+  READY
+  FAILED
+}
+
 enum OrganizationPlan {
   FREE
   PRO
@@ -51,11 +60,12 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  folders      Folder[]     @relation("FolderCreatedBy")
-  documents    Document[]   @relation("DocumentUploadedBy")
-  auditLogs    AuditLog[]
-  refreshTokens RefreshToken[]
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  folders          Folder[]          @relation("FolderCreatedBy")
+  documents        Document[]        @relation("DocumentUploadedBy")
+  versionsUploaded DocumentVersion[] @relation("VersionUploadedBy")
+  auditLogs        AuditLog[]
+  refreshTokens    RefreshToken[]
 
   @@index([organizationId])
 }
@@ -81,45 +91,74 @@ model Folder {
   @@index([organizationId, parentId])
 }
 
-model Document {
-  id             String         @id @default(uuid())
-  name           String
-  mimeType       String
-  sizeBytes      Int
-  storagePath    String
-  status         DocumentStatus @default(PENDING)
-  folderId       String?
-  organizationId String
-  uploadedById   String
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  deletedAt      DateTime?      // AJOUT
 
-  folder       Folder?         @relation(fields: [folderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  uploadedBy   User            @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  chunks       DocumentChunk[]
+model Document {
+  id               String         @id @default(uuid())
+  name             String
+  folderId         String?
+  organizationId   String
+  uploadedById     String
+  currentVersionId String?        @unique
+  deletedAt        DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  folder         Folder?           @relation(fields: [folderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  uploadedBy     User              @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  currentVersion DocumentVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  versions       DocumentVersion[] @relation("AllVersions")
+  chunks         DocumentChunk[]
 
   @@unique([id, organizationId])
   @@index([organizationId])
   @@index([folderId])
 }
 
+model DocumentVersion {
+  id               String                 @id @default(uuid())
+  documentId       String
+  organizationId   String
+  versionNumber    Int
+  storageKey       String
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  checksumSha256   String
+  status           DocumentVersionStatus  @default(PENDING_UPLOAD)
+  uploadedById     String
+  createdAt        DateTime               @default(now())
+
+  document     Document       @relation("AllVersions", fields: [documentId, organizationId], references: [id, organizationId], onDelete: Cascade, onUpdate: Cascade)
+  currentFor   Document?      @relation("CurrentVersion")
+  uploadedBy   User           @relation("VersionUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  chunks       DocumentChunk[]
+
+  @@unique([documentId, versionNumber])
+  @@index([organizationId])
+  @@index([documentId])
+}
+
 model DocumentChunk {
-  id             String                     @id @default(uuid())
-  documentId     String
-  organizationId String
-  chunkIndex     Int
-  content        String
-  embedding      Unsupported("vector(768)")?
-  embeddingModel String
-  createdAt      DateTime                   @default(now())
+  id                String                     @id @default(uuid())
+  documentId        String
+  organizationId    String
+  documentVersionId String?
+  chunkIndex        Int
+  content           String
+  embedding         Unsupported("vector(768)")?
+  embeddingModel    String
+  createdAt         DateTime                   @default(now())
 
   document Document @relation(fields: [documentId, organizationId], references: [id, organizationId], onDelete: Cascade, onUpdate: Cascade)
+  version  DocumentVersion? @relation(fields: [documentVersionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([documentId, chunkIndex])
   @@index([organizationId])
+  @@index([documentVersionId])
 }
+
+
 
 model AuditLog {
   id             String   @id @default(uuid())

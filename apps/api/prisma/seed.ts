@@ -2,7 +2,9 @@ import argon2 from 'argon2';
 import { PrismaClient } from '@prisma/client';
 
 const migrateUrl = process.env.DATABASE_URL_MIGRATE;
-if (!migrateUrl) throw new Error('DATABASE_URL_MIGRATE is required');
+if (!migrateUrl) {
+  throw new Error('DATABASE_URL_MIGRATE is required to run the seed');
+}
 
 const prisma = new PrismaClient({ datasourceUrl: migrateUrl });
 
@@ -12,11 +14,17 @@ async function main() {
   const passwordHashCharlie = await argon2.hash('charlie');
 
   await prisma.$transaction(async (tx) => {
-    // --- ORG 1 : Acme Corp ---
+    // ────────────────────────────────────────────────────────────────
+    // ORG 1 : Acme Corp
+    // ────────────────────────────────────────────────────────────────
     const org = await tx.organization.upsert({
       where: { slug: 'acme-corp' },
       update: {},
-      create: { name: 'Acme Corp', slug: 'acme-corp', plan: 'FREE' },
+      create: {
+        name: 'Acme Corp',
+        slug: 'acme-corp',
+        plan: 'FREE',
+      },
     });
 
     const alice = await tx.user.upsert({
@@ -52,27 +60,58 @@ async function main() {
       },
     });
 
-    await tx.document.upsert({
-      where: { id: 'seed-document-placeholder' },
+    // ────────────────────────────────────────────────────────────────
+    // Document avec sa version (nouveau modèle 5.4)
+    // ────────────────────────────────────────────────────────────────
+    const docId = 'seed-document-placeholder';
+    const doc = await tx.document.upsert({
+      where: { id: docId },
       update: {},
       create: {
-        id: 'seed-document-placeholder',
+        id: docId,
         name: 'placeholder.pdf',
-        mimeType: 'application/pdf',
-        sizeBytes: 0,
-        storagePath: 'seed/placeholder.pdf',
-        status: 'PENDING',
         folderId: contractsFolder.id,
         organizationId: org.id,
         uploadedById: alice.id,
       },
     });
 
-    // --- ORG 2 : Beta Corp (pour tester l'isolation) ---
+    let version = await tx.documentVersion.findFirst({
+      where: { documentId: doc.id },
+    });
+
+    version ??= await tx.documentVersion.create({
+      data: {
+        documentId: doc.id,
+        organizationId: org.id,
+        versionNumber: 1,
+        storageKey: 'seed/placeholder.pdf',
+        originalFilename: 'placeholder.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 0,
+        checksumSha256: '',
+        status: 'PENDING_UPLOAD',
+        uploadedById: alice.id,
+      },
+    });
+
+    // Lier la version au document
+    await tx.document.update({
+      where: { id: doc.id },
+      data: { currentVersionId: version.id },
+    });
+
+    // ────────────────────────────────────────────────────────────────
+    // ORG 2 : Beta Corp (pour les tests d'isolation)
+    // ────────────────────────────────────────────────────────────────
     const betaOrg = await tx.organization.upsert({
       where: { slug: 'beta-corp' },
       update: {},
-      create: { name: 'Beta Corp', slug: 'beta-corp', plan: 'PRO' },
+      create: {
+        name: 'Beta Corp',
+        slug: 'beta-corp',
+        plan: 'PRO',
+      },
     });
 
     const charlie = await tx.user.upsert({

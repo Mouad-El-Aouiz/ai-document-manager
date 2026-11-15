@@ -289,32 +289,45 @@ describe('Folders CRUD (E2E)', () => {
       .send({ name: 'Child Delete', parentId });
     const childId = (childRes.body as FolderResponse).folder.id;
 
-    // Créer un document bidon dans l'enfant via adminPrisma (car la route upload n'existe pas encore)
+    // Créer un document + version dans l'enfant via adminPrisma
     const aliceUser = await adminPrisma.user.findUniqueOrThrow({
       where: { email: 'alice@acme.com' },
     });
-    await adminPrisma.document.create({
+    const doc = await adminPrisma.document.create({
       data: {
         name: 'doc.pdf',
-        mimeType: 'application/pdf',
-        sizeBytes: 100,
-        storagePath: 'path',
         folderId: childId,
         organizationId: aliceOrgId,
         uploadedById: aliceUser.id,
       },
     });
+    const version = await adminPrisma.documentVersion.create({
+      data: {
+        documentId: doc.id,
+        organizationId: aliceOrgId,
+        versionNumber: 1,
+        storageKey: 'path',
+        originalFilename: 'doc.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 100,
+        checksumSha256: 'abc',
+        status: 'UPLOADED',
+        uploadedById: aliceUser.id,
+      },
+    });
+    await adminPrisma.document.update({
+      where: { id: doc.id },
+      data: { currentVersionId: version.id },
+    });
 
     const deleteRes = await request(app)
       .delete(`/api/v1/folders/${parentId}`)
       .set('Authorization', `Bearer ${aliceToken}`);
-
     expect(deleteRes.status).toBe(204);
 
-    // Vérifier en base que tout est soft-deleted
     const dbParent = await adminPrisma.folder.findUnique({ where: { id: parentId } });
     const dbChild = await adminPrisma.folder.findUnique({ where: { id: childId } });
-    const dbDoc = await adminPrisma.document.findFirst({ where: { folderId: childId } });
+    const dbDoc = await adminPrisma.document.findUnique({ where: { id: doc.id } });
 
     expect(dbParent?.deletedAt).not.toBeNull();
     expect(dbChild?.deletedAt).not.toBeNull();
