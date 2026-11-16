@@ -12,7 +12,10 @@ export type AuditAction =
   | 'FOLDER_UPDATE'
   | 'FOLDER_DELETE'
   | 'FOLDER_MOVE'
-  | 'DOCUMENT_UPLOAD';
+  | 'DOCUMENT_UPLOAD'
+  | 'DOCUMENT_DOWNLOAD'
+  | 'DOCUMENT_UPDATE'
+  | 'DOCUMENT_DELETE';
 
 export interface AuditEvent {
   action: AuditAction;
