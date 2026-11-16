@@ -15,7 +15,10 @@ export type AuditAction =
   | 'DOCUMENT_UPLOAD'
   | 'DOCUMENT_DOWNLOAD'
   | 'DOCUMENT_UPDATE'
-  | 'DOCUMENT_DELETE';
+  | 'DOCUMENT_DELETE'
+  | 'TAG_CREATE'
+  | 'TAG_UPDATE'
+  | 'TAG_DELETE';
 
 export interface AuditEvent {
   action: AuditAction;
