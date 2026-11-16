@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import type { PrismaClient } from '@prisma/client';
+import type { Redis } from 'ioredis';
 import { createApp } from './app.js';
 import { parseEnv } from './config/env.js';
 import { createLogger } from './infra/logger.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { requestContext } from './middlewares/request-context.js';
-import type { PrismaClient } from './infra/prisma.js';
-import type { Redis } from './infra/redis.js';
+import { validate } from './middlewares/validate.js';
+import { z } from 'zod';
 
 describe('App Error Handling & Validation', () => {
   const env = parseEnv({
@@ -22,9 +24,15 @@ describe('App Error Handling & Validation', () => {
   const logger = createLogger(env);
   logger.level = 'silent';
 
-  // Mocks simples pour satisfaire le type de AppDependencies
-  const mockPrisma = {} as PrismaClient;
-  const mockRedis = {} as Redis;
+  const mockPrisma = {
+    $queryRaw: () => Promise.resolve([{ ok: 1 }]),
+    $executeRaw: () => Promise.resolve(1),
+    $transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma),
+  } as unknown as PrismaClient;
+
+  const mockRedis = {
+    ping: () => Promise.resolve('PONG'),
+  } as unknown as Redis;
 
   const app = createApp({ env, logger, prisma: mockPrisma, redis: mockRedis });
 
@@ -35,7 +43,20 @@ describe('App Error Handling & Validation', () => {
   });
 
   it('should return 400 with standard format on Zod validation error', async () => {
-    const res = await request(app).post('/test-validation').send({ name: 'ab' });
+    const testApp = express();
+    testApp.use(express.json());
+    testApp.use(requestContext());
+    testApp.post(
+      '/test-validation',
+      validate({ body: z.object({ name: z.string().min(3) }) }),
+      (req, res) => {
+        const body = req.body as { name: string };
+        res.json({ received: body });
+      },
+    );
+    testApp.use(errorHandler(logger));
+
+    const res = await request(testApp).post('/test-validation').send({ name: 'ab' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatchObject({
@@ -59,11 +80,9 @@ describe('App Error Handling & Validation', () => {
   it('should return 500 without stack trace on unexpected error', async () => {
     const crashApp = express();
     crashApp.use(requestContext());
-
     crashApp.get('/crash', () => {
       throw new Error('Secret database error');
     });
-
     crashApp.use(errorHandler(logger));
 
     const res = await request(crashApp).get('/crash');

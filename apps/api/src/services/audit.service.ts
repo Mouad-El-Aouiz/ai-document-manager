@@ -16,6 +16,7 @@ export type AuditAction =
   | 'DOCUMENT_DOWNLOAD'
   | 'DOCUMENT_UPDATE'
   | 'DOCUMENT_DELETE'
+  | 'DOCUMENT_RESTORE'
   | 'TAG_CREATE'
   | 'TAG_UPDATE'
   | 'TAG_DELETE';

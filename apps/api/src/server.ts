@@ -30,7 +30,6 @@ const shutdown = (): void => {
       });
   });
 
-  // Timeout de secours (10s) si les connexions ne se ferment pas
   setTimeout(() => {
     logger.error('Could not close connections in time, forcefully shutting down');
     process.exit(1);

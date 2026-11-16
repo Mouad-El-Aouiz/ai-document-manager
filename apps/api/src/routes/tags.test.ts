@@ -35,6 +35,7 @@ describe('Tags CRUD (E2E)', () => {
   const adminUrl = process.env.DATABASE_URL_MIGRATE;
   if (!adminUrl) throw new Error('DATABASE_URL_MIGRATE required');
   const adminPrisma = new PrismaClient({ datasourceUrl: adminUrl });
+
   const app = createApp({ env, logger, prisma, redis });
 
   let aliceToken = '';

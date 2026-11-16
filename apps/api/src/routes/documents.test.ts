@@ -47,7 +47,7 @@ describe('Documents CRUD (E2E)', () => {
 
   // On force un FakeStorageProvider partagé pour pouvoir y injecter des objets
   const fakeStorage = new FakeStorageProvider();
-  const app = createApp({ env, logger, prisma, redis, storage: fakeStorage });
+  const app = createApp({ env, logger, prisma, redis });
 
   let aliceToken = '';
   let charlieToken = '';

@@ -10,6 +10,8 @@ export interface DocumentVersionRepository {
     id: string,
     data: Prisma.DocumentVersionUncheckedUpdateInput,
   ): Promise<DocumentVersion>;
+  findByDocument(tx: TenantTx, documentId: string): Promise<DocumentVersion[]>;
+  countByDocument(tx: TenantTx, documentId: string): Promise<number>;
 }
 
 export const documentVersionRepository: DocumentVersionRepository = {
@@ -23,4 +25,11 @@ export const documentVersionRepository: DocumentVersionRepository = {
     return (lastVersion?.versionNumber ?? 0) + 1;
   },
   update: (tx, id, data) => tx.documentVersion.update({ where: { id }, data }),
+  findByDocument: (tx, documentId) =>
+    tx.documentVersion.findMany({
+      where: { documentId },
+      orderBy: { versionNumber: 'desc' },
+    }),
+
+  countByDocument: (tx, documentId) => tx.documentVersion.count({ where: { documentId } }),
 };
