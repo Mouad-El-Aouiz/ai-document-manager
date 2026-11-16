@@ -8,6 +8,8 @@ const listQuerySchema = z.object({
   cursor: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   folderId: z.string().optional(),
+  q: z.string().optional(),
+  tag: z.string().optional(),
 });
 
 const paramsSchema = z.object({ id: z.string().uuid() });
@@ -20,6 +22,17 @@ const updateSchema = z
   .refine((data) => data.name !== undefined || data.folderId !== undefined, {
     message: 'At least one field must be provided',
   });
+
+const metadataBodySchema = z.object({
+  metadata: z.record(
+    z.string().max(50),
+    z.union([z.string().max(500), z.number(), z.boolean()]),
+  ),
+});
+
+const tagsBodySchema = z.object({
+  tagIds: z.array(z.string().uuid()),
+});
 
 function requireContext(req: Request): {
   auth: AccessTokenPayload;
@@ -38,7 +51,6 @@ export class DocumentController {
     const { withTenant } = requireContext(req);
     const parsed = listQuerySchema.parse(req.query);
 
-    // folderId : absent → tous, "null" → racine, uuid → ce dossier
     let folderId: string | null | undefined;
     if (parsed.folderId === undefined) folderId = undefined;
     else if (parsed.folderId === 'null') folderId = null;
@@ -49,6 +61,8 @@ export class DocumentController {
         cursor: parsed.cursor,
         limit: parsed.limit,
         folderId,
+        q: parsed.q,
+        tagName: parsed.tag,
       }),
     );
     res.status(200).json(result);
@@ -85,5 +99,25 @@ export class DocumentController {
     const { id } = paramsSchema.parse(req.params);
     await withTenant((tx) => this.documentService.softDelete(tx, id, auth.org, auth.sub));
     res.status(204).send();
+  }
+
+  async updateMetadata(req: Request, res: Response): Promise<void> {
+    const { auth, withTenant } = requireContext(req);
+    const { id } = paramsSchema.parse(req.params);
+    const body = metadataBodySchema.parse(req.body);
+    const document = await withTenant((tx) =>
+      this.documentService.updateMetadata(tx, id, body.metadata, auth.org, auth.sub),
+    );
+    res.status(200).json({ document });
+  }
+
+  async updateTags(req: Request, res: Response): Promise<void> {
+    const { auth, withTenant } = requireContext(req);
+    const { id } = paramsSchema.parse(req.params);
+    const { tagIds } = tagsBodySchema.parse(req.body);
+    const document = await withTenant((tx) =>
+      this.documentService.updateTags(tx, id, tagIds, auth.org, auth.sub),
+    );
+    res.status(200).json({ document });
   }
 }

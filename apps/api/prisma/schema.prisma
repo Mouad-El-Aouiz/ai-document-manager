@@ -49,6 +49,7 @@ model Organization {
   documents Document[]
   auditLogs AuditLog[]
   refreshTokens RefreshToken[]
+  tags           Tag[]    
 }
 
 model User {
@@ -100,6 +101,7 @@ model Document {
   uploadedById     String
   currentVersionId String?        @unique
   deletedAt        DateTime?
+  metadata         Json? 
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
@@ -108,11 +110,38 @@ model Document {
   uploadedBy     User              @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   currentVersion DocumentVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   versions       DocumentVersion[] @relation("AllVersions")
-  chunks         DocumentChunk[]
+  chunks         DocumentChunk[]          
+  tags           DocumentTag[]    
 
   @@unique([id, organizationId])
   @@index([organizationId])
   @@index([folderId])
+}
+
+model Tag {
+  id             String        @id @default(uuid())
+  organizationId String
+  name           String        // Nom normalisé (minuscules, espaces compressés)
+  color          String?       // Format hexadécimal (#RRGGBB)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents    DocumentTag[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model DocumentTag {
+  documentId String
+  tagId      String
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, tagId])
+  @@index([tagId])
 }
 
 model DocumentVersion {

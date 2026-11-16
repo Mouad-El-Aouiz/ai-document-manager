@@ -55,6 +55,16 @@ export function documentsRouter(
     requirePermission('document:delete'),
     documentController.delete.bind(documentController),
   );
+  router.patch(
+    '/:id/metadata',
+    requirePermission('document:write'),
+    documentController.updateMetadata.bind(documentController),
+  );
+  router.put(
+    '/:id/tags',
+    requirePermission('document:write'),
+    documentController.updateTags.bind(documentController),
+  );
 
   return router;
 }

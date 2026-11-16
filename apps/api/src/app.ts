@@ -30,6 +30,9 @@ import { documentsRouter } from './routes/documents.js';
 import type { StorageProvider } from './infra/storage/index.js';
 import { DocumentController } from './controllers/document.controller.js';
 import { DocumentService } from './services/document.service.js';
+import { TagController } from './controllers/tag.controller.js';
+import { TagService } from './services/tag.service.js';
+import { tagsRouter } from './routes/tags.js';
 
 export interface AppDependencies {
   env: Env;
@@ -92,6 +95,8 @@ export function createApp(deps: AppDependencies): Express {
   const uploadController = new DocumentUploadController(uploadService);
   const documentService = new DocumentService(storage, auditService);
   const documentController = new DocumentController(documentService);
+  const tagService = new TagService(auditService);
+  const tagController = new TagController(tagService);
 
   // 5. Routes
   app.get('/', (_req, res) => {
@@ -114,6 +119,7 @@ export function createApp(deps: AppDependencies): Express {
     '/api/v1/documents',
     documentsRouter(uploadController, documentController, deps.env, deps.prisma),
   );
+  app.use('/api/v1/tags', tagsRouter(tagController, deps.env, deps.prisma));
 
   // 6. 404 Handler
   app.use((_req, _res, next) => {

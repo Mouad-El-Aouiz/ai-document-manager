@@ -3,13 +3,15 @@ import type { Document } from '@prisma/client';
 import type { TenantTx } from '../db/with-tenant.js';
 
 export type DocumentWithCurrentVersion = Prisma.DocumentGetPayload<{
-  include: { currentVersion: true };
+  include: { currentVersion: true; tags: { include: { tag: true } } };
 }>;
 
 export interface ListOptions {
   cursor?: string | undefined;
   limit: number;
   folderId?: string | null | undefined;
+  q?: string | undefined;
+  tagName?: string | undefined;
 }
 
 export interface DocumentRepository {
@@ -30,7 +32,7 @@ export const documentRepository: DocumentRepository = {
   findByIdWithVersion: (tx, id) =>
     tx.document.findFirst({
       where: { id, deletedAt: null },
-      include: { currentVersion: true },
+      include: { currentVersion: true, tags: { include: { tag: true } } },
     }),
 
   findAll: async (tx, options) => {
@@ -38,9 +40,9 @@ export const documentRepository: DocumentRepository = {
       deletedAt: null,
       currentVersionId: { not: null },
     };
-    if (options.folderId !== undefined) {
-      where.folderId = options.folderId;
-    }
+    if (options.folderId !== undefined) where.folderId = options.folderId;
+    if (options.q !== undefined) where.name = { contains: options.q, mode: 'insensitive' };
+    if (options.tagName !== undefined) where.tags = { some: { tag: { name: options.tagName } } };
 
     try {
       return await tx.document.findMany({
@@ -48,13 +50,10 @@ export const documentRepository: DocumentRepository = {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: options.limit + 1,
         ...(options.cursor !== undefined ? { cursor: { id: options.cursor }, skip: 1 } : {}),
-        include: { currentVersion: true },
+        include: { currentVersion: true, tags: { include: { tag: true } } },
       });
     } catch (error: unknown) {
-      // Curseur pointant vers un document supprimé entre deux requêtes → page vide
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        return [];
-      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') return [];
       throw error;
     }
   },
@@ -62,10 +61,7 @@ export const documentRepository: DocumentRepository = {
   update: (tx, id, data) => tx.document.update({ where: { id }, data }),
 
   softDelete: async (tx, id) => {
-    await tx.document.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    await tx.document.update({ where: { id }, data: { deletedAt: new Date() } });
   },
 
   lockDocument: async (tx, id) => {

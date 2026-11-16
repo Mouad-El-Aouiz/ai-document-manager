@@ -6,14 +6,28 @@ import {
   type ListOptions,
 } from '../repositories/document.repository.js';
 import { folderRepository } from '../repositories/folder.repository.js';
+import { tagRepository } from '../repositories/tag.repository.js';
 import type { StorageProvider } from '../infra/storage/index.js';
 import type { AuditService } from './audit.service.js';
 import { AppError } from '../errors/AppError.js';
+import { z } from 'zod';
+
+// Schéma de validation pour les métadonnées
+const metadataSchema = z
+  .record(
+    z.string().max(50),
+    z.union([z.string().max(500), z.number(), z.boolean()]),
+  )
+  .refine((obj) => Object.keys(obj).length <= 20, {
+    message: 'Metadata cannot have more than 20 keys',
+  });
 
 export interface ListDocumentsInput {
   cursor?: string | undefined;
   limit: number;
   folderId?: string | null | undefined;
+  q?: string | undefined;
+  tagName?: string | undefined;
 }
 
 export interface ListDocumentsResult {
@@ -37,6 +51,8 @@ export class DocumentService {
       limit: input.limit,
       ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
       ...(input.folderId !== undefined ? { folderId: input.folderId } : {}),
+      ...(input.q !== undefined ? { q: input.q } : {}),
+      ...(input.tagName !== undefined ? { tagName: input.tagName } : {}),
     };
 
     const rows = await documentRepository.findAll(tx, options);
@@ -71,7 +87,10 @@ export class DocumentService {
       throw new AppError(404, 'NOT_FOUND', 'Document is not available for download');
     }
 
-    const url = await this.storage.presignDownload(version.storageKey, version.originalFilename);
+    const url = await this.storage.presignDownload(
+      version.storageKey,
+      version.originalFilename,
+    );
 
     await this.auditService.record(tx, {
       action: 'DOCUMENT_DOWNLOAD',
@@ -133,5 +152,66 @@ export class DocumentService {
       organizationId: orgId,
       actorId: userId,
     });
+  }
+
+  async updateMetadata(
+    tx: TenantTx,
+    id: string,
+    metadata: unknown,
+    orgId: string,
+    userId: string,
+  ): Promise<Document> {
+    await this.getById(tx, id);
+    const parsed = metadataSchema.parse(metadata);
+
+    const updated = await documentRepository.update(tx, id, { metadata: parsed });
+
+    await this.auditService.record(tx, {
+      action: 'DOCUMENT_UPDATE',
+      entityType: 'Document',
+      entityId: id,
+      organizationId: orgId,
+      actorId: userId,
+      metadata: { field: 'metadata' },
+    });
+
+    return updated;
+  }
+
+  async updateTags(
+    tx: TenantTx,
+    id: string,
+    tagIds: string[],
+    orgId: string,
+    userId: string,
+  ): Promise<DocumentWithCurrentVersion> {
+    await this.getById(tx, id);
+
+    if (tagIds.length > 20) {
+      throw new AppError(400, 'BAD_REQUEST', 'Maximum 20 tags per document');
+    }
+
+    const uniqueTagIds = Array.from(new Set(tagIds));
+    const tags = await tagRepository.findByIds(tx, uniqueTagIds);
+    if (tags.length !== uniqueTagIds.length) {
+      throw new AppError(400, 'BAD_REQUEST', 'One or more tags do not exist');
+    }
+
+    await tx.documentTag.deleteMany({ where: { documentId: id } });
+    await tx.documentTag.createMany({
+      data: uniqueTagIds.map((tagId) => ({ documentId: id, tagId })),
+    });
+
+    await this.auditService.record(tx, {
+      action: 'DOCUMENT_UPDATE',
+      entityType: 'Document',
+      entityId: id,
+      organizationId: orgId,
+      actorId: userId,
+      metadata: { field: 'tags', count: uniqueTagIds.length },
+    });
+
+    // getById retourne déjà DocumentWithCurrentVersion (avec tags inclus)
+    return this.getById(tx, id);
   }
 }
