@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { withTenant } from './with-tenant.js';
+import { withTenant } from '@aidm/shared';
 
 // 1. Validation explicite pour satisfaire TypeScript (narrowing)
 if (!process.env.DATABASE_URL || !process.env.DATABASE_URL_MIGRATE) {

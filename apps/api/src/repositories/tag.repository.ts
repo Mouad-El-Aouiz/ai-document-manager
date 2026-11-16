@@ -1,5 +1,5 @@
 import type { Tag, Prisma } from '@prisma/client';
-import type { TenantTx } from '../db/with-tenant.js';
+import type { TenantTx } from '@aidm/shared';
 
 export interface TagRepository {
   findAll(tx: TenantTx): Promise<Tag[]>;

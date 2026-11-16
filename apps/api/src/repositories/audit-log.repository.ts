@@ -1,5 +1,5 @@
 import type { Prisma, AuditLog } from '@prisma/client';
-import type { TenantTx } from '../db/with-tenant.js';
+import type { TenantTx } from '@aidm/shared';
 
 export interface AuditLogListOptions {
   cursor?: string | undefined;

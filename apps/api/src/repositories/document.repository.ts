@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import type { Document } from '@prisma/client';
-import type { TenantTx } from '../db/with-tenant.js';
+import type { TenantTx } from '@aidm/shared';
 
 export type DocumentWithCurrentVersion = Prisma.DocumentGetPayload<{
   include: { currentVersion: true; tags: { include: { tag: true } } };

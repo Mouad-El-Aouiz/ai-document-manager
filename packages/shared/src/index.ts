@@ -1,2 +1,2 @@
-// Placeholder — accueillera les types et schémas Zod partagés.
-export const PACKAGE_NAME = '@aidm/shared';
+export { withTenant } from './db/with-tenant.js';
+export type { TenantTx } from './db/with-tenant.js';

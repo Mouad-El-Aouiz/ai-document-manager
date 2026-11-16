@@ -16,18 +16,18 @@ describe('Document Metadata & Tags', () => {
     JWT_ACCESS_SECRET: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     JWT_REFRESH_SECRET: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     CORS_ORIGINS: 'http://localhost:3000',
-    ALLOWED_MIME_TYPES: 'application/pdf,text/plain',
+    ALLOWED_MIME_TYPES: 'text/plain',
     S3_ENDPOINT: process.env.S3_ENDPOINT,
     S3_PUBLIC_ENDPOINT: process.env.S3_PUBLIC_ENDPOINT,
     S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
     S3_SECRET_KEY: process.env.S3_SECRET_KEY,
     S3_BUCKET: process.env.S3_BUCKET,
   });
+
   const logger = createLogger(env);
   logger.level = 'silent';
   const prisma = createPrismaClient();
   const redis = createRedisClient(env.REDIS_URL);
-
   const adminUrl = process.env.DATABASE_URL_MIGRATE;
   if (!adminUrl) throw new Error('DATABASE_URL_MIGRATE required');
   const adminPrisma = new PrismaClient({ datasourceUrl: adminUrl });
@@ -51,7 +51,6 @@ describe('Document Metadata & Tags', () => {
   });
 
   afterAll(async () => {
-    await adminPrisma.document.deleteMany({ where: { id: docId } });
     await prisma.$disconnect();
     await adminPrisma.$disconnect();
     await redis.quit();
@@ -84,27 +83,40 @@ describe('Document Metadata & Tags', () => {
   });
 
   it('should replace tags on a document', async () => {
+    // Noms uniques pour éviter les conflits entre exécutions
+    const suffix = Date.now().toString();
+    const tagName1 = `urgent-${suffix}`;
+    const tagName2 = `finance-${suffix}`;
+
     const tag1 = await request(app)
       .post('/api/v1/tags')
       .set('Authorization', `Bearer ${aliceToken}`)
-      .send({ name: 'urgent' });
+      .send({ name: tagName1 });
     const tag2 = await request(app)
       .post('/api/v1/tags')
       .set('Authorization', `Bearer ${aliceToken}`)
-      .send({ name: 'finance' });
+      .send({ name: tagName2 });
+
+    expect(tag1.status).toBe(201);
+    expect(tag2.status).toBe(201);
+
     const tag1Id = (tag1.body as { tag: { id: string } }).tag.id;
     const tag2Id = (tag2.body as { tag: { id: string } }).tag.id;
 
+    // Premier remplacement : 2 tags
     const res = await request(app)
       .put(`/api/v1/documents/${docId}/tags`)
       .set('Authorization', `Bearer ${aliceToken}`)
       .send({ tagIds: [tag1Id, tag2Id] });
+
     expect(res.status).toBe(200);
 
+    // Deuxième remplacement : 1 seul tag (idempotence)
     const res2 = await request(app)
       .put(`/api/v1/documents/${docId}/tags`)
       .set('Authorization', `Bearer ${aliceToken}`)
       .send({ tagIds: [tag1Id] });
+
     expect(res2.status).toBe(200);
   });
 });

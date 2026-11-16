@@ -1,5 +1,5 @@
 import type { Document } from '@prisma/client';
-import type { TenantTx } from '../db/with-tenant.js';
+import type { TenantTx } from '@aidm/shared';
 import {
   documentRepository,
   type DocumentWithCurrentVersion,
