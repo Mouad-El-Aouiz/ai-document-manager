@@ -8,6 +8,7 @@ describe('Environment Validation', () => {
     JWT_ACCESS_SECRET: 'a'.repeat(32),
     JWT_REFRESH_SECRET: 'b'.repeat(32),
     CORS_ORIGINS: 'http://localhost:3000,http://localhost:5173',
+    ALLOWED_MIME_TYPES: 'application/pdf,text/plain',
   };
 
   it('should parse and freeze valid env', () => {
