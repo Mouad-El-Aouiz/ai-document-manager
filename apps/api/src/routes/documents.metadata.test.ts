@@ -38,7 +38,9 @@ describe('Document Metadata & Tags', () => {
   let docId = '';
 
   beforeAll(async () => {
-    const aliceLogin = await request(app).post('/api/v1/auth/login').send({ email: 'alice@acme.com', password: 'alice' });
+    const aliceLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'alice@acme.com', password: 'alice' });
     aliceToken = (aliceLogin.body as { accessToken: string }).accessToken;
 
     const alice = await adminPrisma.user.findUniqueOrThrow({ where: { email: 'alice@acme.com' } });
@@ -63,7 +65,9 @@ describe('Document Metadata & Tags', () => {
 
     expect(res.status).toBe(200);
     expect((res.body as { document: { metadata: unknown } }).document.metadata).toEqual({
-      author: 'Alice', year: 2026, draft: true,
+      author: 'Alice',
+      year: 2026,
+      draft: true,
     });
   });
 
@@ -80,8 +84,14 @@ describe('Document Metadata & Tags', () => {
   });
 
   it('should replace tags on a document', async () => {
-    const tag1 = await request(app).post('/api/v1/tags').set('Authorization', `Bearer ${aliceToken}`).send({ name: 'urgent' });
-    const tag2 = await request(app).post('/api/v1/tags').set('Authorization', `Bearer ${aliceToken}`).send({ name: 'finance' });
+    const tag1 = await request(app)
+      .post('/api/v1/tags')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ name: 'urgent' });
+    const tag2 = await request(app)
+      .post('/api/v1/tags')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ name: 'finance' });
     const tag1Id = (tag1.body as { tag: { id: string } }).tag.id;
     const tag2Id = (tag2.body as { tag: { id: string } }).tag.id;
 

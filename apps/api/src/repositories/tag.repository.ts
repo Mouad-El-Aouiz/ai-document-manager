@@ -16,5 +16,7 @@ export const tagRepository: TagRepository = {
   findByIds: (tx, ids) => tx.tag.findMany({ where: { id: { in: ids } } }),
   create: (tx, data) => tx.tag.create({ data }),
   update: (tx, id, data) => tx.tag.update({ where: { id }, data }),
-  delete: async (tx, id) => { await tx.tag.delete({ where: { id } }); },
+  delete: async (tx, id) => {
+    await tx.tag.delete({ where: { id } });
+  },
 };

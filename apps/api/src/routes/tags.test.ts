@@ -45,10 +45,14 @@ describe('Tags CRUD (E2E)', () => {
     const alice = await adminPrisma.user.findUniqueOrThrow({ where: { email: 'alice@acme.com' } });
     aliceOrgId = alice.organizationId;
 
-    const aliceLogin = await request(app).post('/api/v1/auth/login').send({ email: 'alice@acme.com', password: 'alice' });
+    const aliceLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'alice@acme.com', password: 'alice' });
     aliceToken = (aliceLogin.body as { accessToken: string }).accessToken;
 
-    const charlieLogin = await request(app).post('/api/v1/auth/login').send({ email: 'charlie@beta.com', password: 'charlie' });
+    const charlieLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'charlie@beta.com', password: 'charlie' });
     charlieToken = (charlieLogin.body as { accessToken: string }).accessToken;
   });
 

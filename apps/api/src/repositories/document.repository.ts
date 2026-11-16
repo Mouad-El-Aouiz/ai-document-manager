@@ -53,7 +53,8 @@ export const documentRepository: DocumentRepository = {
         include: { currentVersion: true, tags: { include: { tag: true } } },
       });
     } catch (error: unknown) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') return [];
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025')
+        return [];
       throw error;
     }
   },

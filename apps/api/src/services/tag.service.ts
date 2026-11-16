@@ -45,13 +45,21 @@ export class TagService {
     return tag;
   }
 
-  async update(tx: TenantTx, id: string, input: CreateTagInput, orgId: string, userId: string): Promise<Tag> {
+  async update(
+    tx: TenantTx,
+    id: string,
+    input: CreateTagInput,
+    orgId: string,
+    userId: string,
+  ): Promise<Tag> {
     const tag = await tagRepository.findById(tx, id);
     if (!tag) throw new AppError(404, 'NOT_FOUND', 'Tag not found');
 
     const normalized = normalizeTagName(input.name);
     if (normalized !== tag.name) {
-      const existing = await tx.tag.findFirst({ where: { organizationId: orgId, name: normalized } });
+      const existing = await tx.tag.findFirst({
+        where: { organizationId: orgId, name: normalized },
+      });
       if (existing) throw new AppError(409, 'CONFLICT', 'Tag already exists');
     }
 

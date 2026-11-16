@@ -6,7 +6,10 @@ import type { AccessTokenPayload } from '../services/token.service.js';
 
 const createSchema = z.object({
   name: z.string().min(1).max(50).trim(),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
 });
 const paramsSchema = z.object({ id: z.string().uuid() });
 
@@ -40,7 +43,9 @@ export class TagController {
     const { auth, withTenant } = requireContext(req);
     const { id } = paramsSchema.parse(req.params);
     const parsed = createSchema.parse(req.body);
-    const tag = await withTenant((tx) => this.tagService.update(tx, id, parsed, auth.org, auth.sub));
+    const tag = await withTenant((tx) =>
+      this.tagService.update(tx, id, parsed, auth.org, auth.sub),
+    );
     res.status(200).json({ tag });
   }
 

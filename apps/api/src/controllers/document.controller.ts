@@ -24,10 +24,7 @@ const updateSchema = z
   });
 
 const metadataBodySchema = z.object({
-  metadata: z.record(
-    z.string().max(50),
-    z.union([z.string().max(500), z.number(), z.boolean()]),
-  ),
+  metadata: z.record(z.string().max(50), z.union([z.string().max(500), z.number(), z.boolean()])),
 });
 
 const tagsBodySchema = z.object({

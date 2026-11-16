@@ -14,10 +14,7 @@ import { z } from 'zod';
 
 // Schéma de validation pour les métadonnées
 const metadataSchema = z
-  .record(
-    z.string().max(50),
-    z.union([z.string().max(500), z.number(), z.boolean()]),
-  )
+  .record(z.string().max(50), z.union([z.string().max(500), z.number(), z.boolean()]))
   .refine((obj) => Object.keys(obj).length <= 20, {
     message: 'Metadata cannot have more than 20 keys',
   });
@@ -87,10 +84,7 @@ export class DocumentService {
       throw new AppError(404, 'NOT_FOUND', 'Document is not available for download');
     }
 
-    const url = await this.storage.presignDownload(
-      version.storageKey,
-      version.originalFilename,
-    );
+    const url = await this.storage.presignDownload(version.storageKey, version.originalFilename);
 
     await this.auditService.record(tx, {
       action: 'DOCUMENT_DOWNLOAD',

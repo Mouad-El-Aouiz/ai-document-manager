@@ -5,9 +5,13 @@ import { AppError } from '../errors/AppError.js';
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   ADMIN: ['*'],
   EDITOR: [
-    'folder:read', 'folder:create', 'folder:update',
-    'document:read', 'document:write',
-    'tag:read', 'tag:write', // AJOUT
+    'folder:read',
+    'folder:create',
+    'folder:update',
+    'document:read',
+    'document:write',
+    'tag:read',
+    'tag:write', // AJOUT
   ],
   VIEWER: ['folder:read', 'document:read', 'tag:read'], // AJOUT
 };
