@@ -11,7 +11,8 @@ export type AuditAction =
   | 'FOLDER_CREATE'
   | 'FOLDER_UPDATE'
   | 'FOLDER_DELETE'
-  | 'FOLDER_MOVE';
+  | 'FOLDER_MOVE'
+  | 'DOCUMENT_UPLOAD';
 
 export interface AuditEvent {
   action: AuditAction;

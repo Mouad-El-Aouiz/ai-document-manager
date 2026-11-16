@@ -21,12 +21,20 @@ import { FolderService } from './services/folder.service.js';
 import { AuditService } from './services/audit.service.js';
 import { foldersRouter } from './routes/folders.js';
 import { docsRouter } from './routes/docs.js';
+import { DocumentUploadController } from './controllers/document-upload.controller.js';
+import { DocumentUploadService } from './services/document-upload.service.js';
+import { documentRepository } from './repositories/document.repository.js';
+import { documentVersionRepository } from './repositories/document-version.repository.js';
+import { createStorageProvider } from './infra/storage/index.js';
+import { documentsRouter } from './routes/documents.js';
+import type { StorageProvider } from './infra/storage/types.js';
 
 export interface AppDependencies {
   env: Env;
   logger: Logger;
   prisma: PrismaClient;
   redis: Redis;
+  storage?: StorageProvider;
 }
 
 export function createApp(deps: AppDependencies): Express {
@@ -68,16 +76,23 @@ export function createApp(deps: AppDependencies): Express {
   // 4. Services & Controllers
   const authService = new AuthService(deps.prisma, deps.env, deps.logger);
   const authController = new AuthController(authService, deps.env);
-
   const auditService = new AuditService(deps.prisma, deps.logger);
   const folderService = new FolderService(auditService);
   const folderController = new FolderController(folderService);
+  const storage = createStorageProvider(deps.env);
+  const uploadService = new DocumentUploadService(
+    documentRepository,
+    documentVersionRepository,
+    storage,
+    auditService,
+    deps.env,
+  );
+  const uploadController = new DocumentUploadController(uploadService);
 
   // 5. Routes
   app.get('/', (_req, res) => {
     res.json({ message: 'API is running', env: deps.env.NODE_ENV });
   });
-
   app.post(
     '/test-validation',
     validate({ body: z.object({ name: z.string().min(3) }) }),
@@ -88,10 +103,10 @@ export function createApp(deps: AppDependencies): Express {
       res.json({ received: body });
     },
   );
-
   app.use('/api/v1/auth', authRouter(authController, deps.redis, deps.env));
   app.use('/api/v1/folders', foldersRouter(folderController, deps.env, deps.prisma));
   app.use('/api/v1', docsRouter(deps.env));
+  app.use('/api/v1/documents', documentsRouter(uploadController, deps.env, deps.prisma));
 
   // 6. 404 Handler
   app.use((_req, _res, next) => {
