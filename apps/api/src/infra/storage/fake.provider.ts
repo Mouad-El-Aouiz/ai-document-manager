@@ -1,9 +1,20 @@
 import type { StorageProvider, PresignUploadParams, HeadObjectResult } from './types.js';
 
+interface FakeObject {
+  body: string;
+  contentType: string;
+}
+
 export class FakeStorageProvider implements StorageProvider {
-  private readonly objects = new Map<string, { body: string; contentType: string }>();
+  private readonly objects = new Map<string, FakeObject>();
 
   presignUpload(params: PresignUploadParams): Promise<string> {
+    // Simulation : on enregistre immédiatement l'objet pour que headObject le trouve.
+    // Le contenu est un placeholder de la taille attendue.
+    this.objects.set(params.key, {
+      body: 'x'.repeat(params.contentLength),
+      contentType: params.contentType,
+    });
     return Promise.resolve(`http://fake-s3/${params.key}`);
   }
 
@@ -34,7 +45,7 @@ export class FakeStorageProvider implements StorageProvider {
     return Promise.resolve();
   }
 
-  // Méthodes utilitaires pour les tests (non présentes dans l'interface)
+  // Utilitaire pour les tests (non présent dans l'interface)
   _set(key: string, body: string, contentType: string): void {
     this.objects.set(key, { body, contentType });
   }

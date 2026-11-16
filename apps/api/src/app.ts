@@ -27,7 +27,9 @@ import { documentRepository } from './repositories/document.repository.js';
 import { documentVersionRepository } from './repositories/document-version.repository.js';
 import { createStorageProvider } from './infra/storage/index.js';
 import { documentsRouter } from './routes/documents.js';
-import type { StorageProvider } from './infra/storage/types.js';
+import type { StorageProvider } from './infra/storage/index.js';
+import { DocumentController } from './controllers/document.controller.js';
+import { DocumentService } from './services/document.service.js';
 
 export interface AppDependencies {
   env: Env;
@@ -79,7 +81,7 @@ export function createApp(deps: AppDependencies): Express {
   const auditService = new AuditService(deps.prisma, deps.logger);
   const folderService = new FolderService(auditService);
   const folderController = new FolderController(folderService);
-  const storage = createStorageProvider(deps.env);
+  const storage = deps.storage ?? createStorageProvider(deps.env);
   const uploadService = new DocumentUploadService(
     documentRepository,
     documentVersionRepository,
@@ -88,6 +90,8 @@ export function createApp(deps: AppDependencies): Express {
     deps.env,
   );
   const uploadController = new DocumentUploadController(uploadService);
+  const documentService = new DocumentService(storage, auditService);
+  const documentController = new DocumentController(documentService);
 
   // 5. Routes
   app.get('/', (_req, res) => {
@@ -106,7 +110,10 @@ export function createApp(deps: AppDependencies): Express {
   app.use('/api/v1/auth', authRouter(authController, deps.redis, deps.env));
   app.use('/api/v1/folders', foldersRouter(folderController, deps.env, deps.prisma));
   app.use('/api/v1', docsRouter(deps.env));
-  app.use('/api/v1/documents', documentsRouter(uploadController, deps.env, deps.prisma));
+  app.use(
+    '/api/v1/documents',
+    documentsRouter(uploadController, documentController, deps.env, deps.prisma),
+  );
 
   // 6. 404 Handler
   app.use((_req, _res, next) => {

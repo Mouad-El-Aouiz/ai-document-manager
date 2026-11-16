@@ -52,13 +52,14 @@ export class S3StorageProvider implements StorageProvider {
   }
 
   async presignDownload(key: string, filename: string): Promise<string> {
+    const sanitized = filename.replace(/["\\\r\n]/g, '_');
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
-      ResponseContentDisposition: `attachment; filename="${filename.replace(/"/g, '')}"`,
+      ResponseContentDisposition: `attachment; filename="${sanitized}"`,
     });
 
-    return getSignedUrl(this.publicClient, command, { expiresIn: 300 }); // 5 min
+    return getSignedUrl(this.publicClient, command, { expiresIn: 300 });
   }
 
   async headObject(key: string): Promise<HeadObjectResult | null> {

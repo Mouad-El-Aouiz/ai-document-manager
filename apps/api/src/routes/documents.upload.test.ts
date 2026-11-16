@@ -1,12 +1,12 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { createHash } from 'node:crypto';
+import { PrismaClient } from '@prisma/client';
 import { createApp } from '../app.js';
 import { parseEnv } from '../config/env.js';
 import { createLogger } from '../infra/logger.js';
 import { createPrismaClient } from '../infra/prisma.js';
 import { createRedisClient } from '../infra/redis.js';
-import { PrismaClient } from '@prisma/client';
-import { createHash } from 'node:crypto';
 
 interface InitResponse {
   documentId: string;
@@ -20,8 +20,8 @@ describe('Document Upload (E2E)', () => {
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_MIGRATE: process.env.DATABASE_URL_MIGRATE,
     REDIS_URL: process.env.REDIS_URL,
-    JWT_ACCESS_SECRET: 'a'.repeat(32),
-    JWT_REFRESH_SECRET: 'b'.repeat(32),
+    JWT_ACCESS_SECRET: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    JWT_REFRESH_SECRET: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     CORS_ORIGINS: 'http://localhost:3000',
     ALLOWED_MIME_TYPES: 'application/pdf,text/plain',
     S3_ENDPOINT: process.env.S3_ENDPOINT,
@@ -81,7 +81,6 @@ describe('Document Upload (E2E)', () => {
   });
 
   it('should upload a document end-to-end', async () => {
-    // 1. Init
     const initRes = await request(app)
       .post('/api/v1/documents/uploads')
       .set('Authorization', `Bearer ${aliceToken}`)
@@ -95,13 +94,8 @@ describe('Document Upload (E2E)', () => {
     expect(initRes.status).toBe(201);
     const { versionId, uploadUrl } = initRes.body as InitResponse;
 
-    // 2. PUT : si l'URL commence par "http://fake-s3", on est en FakeStorageProvider (local),
-    // on simule l'upload. Sinon on fait un vrai PUT.
-    if (uploadUrl.startsWith('http://fake-s3')) {
-      // En local avec FakeStorageProvider, on ne peut pas fetch, on skip le PUT.
-      // Le test complet d'intégration S3 est fait dans s3.provider.test.ts
-      console.log('Skipping PUT because FakeStorageProvider is active');
-    } else {
+    // Skip le PUT si l'URL est fake-s3 (FakeStorageProvider)
+    if (!uploadUrl.includes('fake-s3')) {
       const putRes = await fetch(uploadUrl, {
         method: 'PUT',
         body: content,
@@ -110,20 +104,14 @@ describe('Document Upload (E2E)', () => {
       expect(putRes.status).toBe(200);
     }
 
-    // 3. Complete
     const completeRes = await request(app)
       .post(`/api/v1/documents/uploads/${versionId}/complete`)
       .set('Authorization', `Bearer ${aliceToken}`);
 
-    // Si on est en fake, le HEAD échouera car l'objet n'existe pas, mais on ne teste pas le complete ici.
-    // Pour le test E2E réel, on s'attend à 200.
-    if (!uploadUrl.startsWith('http://fake-s3')) {
-      expect(completeRes.status).toBe(200);
+    expect(completeRes.status).toBe(200);
 
-      // Vérification en base
-      const version = await adminPrisma.documentVersion.findUnique({ where: { id: versionId } });
-      expect(version?.status).toBe('UPLOADED');
-    }
+    const version = await adminPrisma.documentVersion.findUnique({ where: { id: versionId } });
+    expect(version?.status).toBe('UPLOADED');
   });
 
   it('should fail upload if mimeType is not allowed', async () => {
