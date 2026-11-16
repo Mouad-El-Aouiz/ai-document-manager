@@ -27,7 +27,7 @@ import { documentRepository } from './repositories/document.repository.js';
 import { documentVersionRepository } from './repositories/document-version.repository.js';
 import { createStorageProvider } from './infra/storage/index.js';
 import { documentsRouter } from './routes/documents.js';
-import type { StorageProvider } from './infra/storage/types.js';
+import type { StorageProvider } from './infra/storage/index.js';
 import { DocumentController } from './controllers/document.controller.js';
 import { DocumentService } from './services/document.service.js';
 
@@ -81,7 +81,7 @@ export function createApp(deps: AppDependencies): Express {
   const auditService = new AuditService(deps.prisma, deps.logger);
   const folderService = new FolderService(auditService);
   const folderController = new FolderController(folderService);
-  const storage = createStorageProvider(deps.env);
+  const storage = deps.storage ?? createStorageProvider(deps.env);
   const uploadService = new DocumentUploadService(
     documentRepository,
     documentVersionRepository,

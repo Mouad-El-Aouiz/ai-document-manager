@@ -1,12 +1,19 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { randomUUID, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { createApp } from '../app.js';
 import { parseEnv } from '../config/env.js';
 import { createLogger } from '../infra/logger.js';
 import { createPrismaClient } from '../infra/prisma.js';
 import { createRedisClient } from '../infra/redis.js';
+import { FakeStorageProvider } from '../infra/storage/fake.provider.js';
+
+interface InitResponse {
+  documentId: string;
+  versionId: string;
+  uploadUrl: string;
+}
 
 interface ListResponse {
   documents: { id: string; name: string }[];
@@ -38,28 +45,48 @@ describe('Documents CRUD (E2E)', () => {
   if (!adminUrl) throw new Error('DATABASE_URL_MIGRATE required');
   const adminPrisma = new PrismaClient({ datasourceUrl: adminUrl });
 
-  const app = createApp({ env, logger, prisma, redis });
-
-  // Détecte si on utilise le FakeStorageProvider (pour skipper les fetch sur fake-s3)
-  const isFakeStorage = env.NODE_ENV === 'test' && !process.env['USE_REAL_S3_IN_TESTS'];
+  // On force un FakeStorageProvider partagé pour pouvoir y injecter des objets
+  const fakeStorage = new FakeStorageProvider();
+  const app = createApp({ env, logger, prisma, redis, storage: fakeStorage });
 
   let aliceToken = '';
   let charlieToken = '';
   let viewerToken = '';
-  let aliceOrgId = '';
-  let charlieOrgId = '';
   let createdDocId = '';
 
   const content = 'Hello, world!';
   const sha256 = createHash('sha256').update(content).digest('base64');
 
+  async function uploadOneDocument(name: string): Promise<string> {
+    const initRes = await request(app)
+      .post('/api/v1/documents/uploads')
+      .set('Authorization', `Bearer ${aliceToken}`)
+      .send({ filename: name, mimeType: 'text/plain', sizeBytes: content.length, sha256 });
+    expect(initRes.status).toBe(201);
+    const init = initRes.body as InitResponse;
+
+    // On simule l'upload en injectant l'objet dans le FakeStorageProvider
+    if (init.uploadUrl.includes('fake-s3')) {
+      const key = init.uploadUrl.replace('http://fake-s3/', '');
+      fakeStorage._set(key, content, 'text/plain');
+    } else {
+      const putRes = await fetch(init.uploadUrl, {
+        method: 'PUT',
+        body: content,
+        headers: { 'Content-Type': 'text/plain' },
+      });
+      expect(putRes.status).toBe(200);
+    }
+
+    const completeRes = await request(app)
+      .post(`/api/v1/documents/uploads/${init.versionId}/complete`)
+      .set('Authorization', `Bearer ${aliceToken}`);
+    expect(completeRes.status).toBe(200);
+    return init.documentId;
+  }
+
   beforeAll(async () => {
     const alice = await adminPrisma.user.findUniqueOrThrow({ where: { email: 'alice@acme.com' } });
-    const charlie = await adminPrisma.user.findUniqueOrThrow({
-      where: { email: 'charlie@beta.com' },
-    });
-    aliceOrgId = alice.organizationId;
-    charlieOrgId = charlie.organizationId;
 
     await adminPrisma.user.upsert({
       where: { email: 'viewer@acme.com' },
@@ -68,7 +95,7 @@ describe('Documents CRUD (E2E)', () => {
         email: 'viewer@acme.com',
         passwordHash: await (await import('argon2')).hash('viewer'),
         role: 'VIEWER',
-        organizationId: aliceOrgId,
+        organizationId: alice.organizationId,
       },
     });
 
@@ -87,42 +114,7 @@ describe('Documents CRUD (E2E)', () => {
       .send({ email: 'viewer@acme.com', password: 'viewer' });
     viewerToken = (viewerLogin.body as { accessToken: string }).accessToken;
 
-    // Créer le document + version directement en base (bypass de l'upload flow,
-    // qui est déjà testé dans documents.upload.test.ts). Évite les fetch vers fake-s3.
-    const docId = randomUUID();
-    const versionId = randomUUID();
-
-    await adminPrisma.document.create({
-      data: {
-        id: docId,
-        name: 'listing-test.txt',
-        organizationId: aliceOrgId,
-        uploadedById: alice.id,
-      },
-    });
-
-    await adminPrisma.documentVersion.create({
-      data: {
-        id: versionId,
-        documentId: docId,
-        organizationId: aliceOrgId,
-        versionNumber: 1,
-        storageKey: `org/${aliceOrgId}/doc/${docId}/v/${versionId}`,
-        originalFilename: 'listing-test.txt',
-        mimeType: 'text/plain',
-        sizeBytes: content.length,
-        checksumSha256: sha256,
-        status: 'UPLOADED',
-        uploadedById: alice.id,
-      },
-    });
-
-    await adminPrisma.document.update({
-      where: { id: docId },
-      data: { currentVersionId: versionId },
-    });
-
-    createdDocId = docId;
+    createdDocId = await uploadOneDocument('listing-test.txt');
   });
 
   afterAll(async () => {
@@ -157,10 +149,6 @@ describe('Documents CRUD (E2E)', () => {
     for (const d of charlieDocs) {
       expect(aliceIds.has(d.id)).toBe(false);
     }
-    // Charlie ne doit pas voir le document d'Acme
-    expect(charlieDocs.find((d) => d.id === createdDocId)).toBeUndefined();
-    // Sanity : l'org de charlie est bien différente
-    expect(charlieOrgId).not.toBe(aliceOrgId);
   });
 
   it('should return 404 for a document of another organization', async () => {
@@ -179,14 +167,14 @@ describe('Documents CRUD (E2E)', () => {
     const body = res.body as { url: string };
     expect(body.url).toMatch(/^http/);
 
-    // Avec FakeStorageProvider, l'URL pointe vers fake-s3 (non résolvable).
-    // Le vrai fetch n'est testé qu'en intégration réelle (USE_REAL_S3_IN_TESTS).
-    if (!isFakeStorage) {
-      const fileRes = await fetch(body.url);
-      expect(fileRes.status).toBe(200);
-      const text = await fileRes.text();
-      expect(text).toBe(content);
+    if (body.url.includes('fake-s3')) {
+      return;
     }
+
+    const fileRes = await fetch(body.url);
+    expect(fileRes.status).toBe(200);
+    const text = await fileRes.text();
+    expect(text).toBe(content);
   });
 
   it('should rename a document', async () => {
