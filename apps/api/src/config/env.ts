@@ -11,7 +11,7 @@ const envSchema = z.object({
   REFRESH_TOKEN_TTL: z.string().default('7d'),
   CORS_ORIGINS: z.string().transform((val) => val.split(',').map((o) => o.trim())),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-  
+
   // Argon2
   ARGON2_MEMORY_COST: z.coerce.number().int().min(4096).default(19456),
   ARGON2_TIME_COST: z.coerce.number().int().min(1).default(2),
@@ -31,11 +31,16 @@ const envSchema = z.object({
   MAX_FILE_SIZE_BYTES: z.coerce.number().int().positive().default(104857600), // 100 MB
   ALLOWED_MIME_TYPES: z
     .string()
-    .default('application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,image/png,image/jpeg')
+    .default(
+      'application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,image/png,image/jpeg',
+    )
     .transform((val) => val.split(',')),
 
   // Tests
-  USE_REAL_S3_IN_TESTS: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  USE_REAL_S3_IN_TESTS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -35,7 +35,7 @@ describe('Document Upload (E2E)', () => {
   logger.level = 'silent';
   const prisma = createPrismaClient();
   const redis = createRedisClient(env.REDIS_URL);
-  
+
   const adminUrl = process.env.DATABASE_URL_MIGRATE;
   if (!adminUrl) throw new Error('DATABASE_URL_MIGRATE required');
   const adminPrisma = new PrismaClient({ datasourceUrl: adminUrl });
@@ -53,7 +53,9 @@ describe('Document Upload (E2E)', () => {
     const alice = await adminPrisma.user.findUniqueOrThrow({ where: { email: 'alice@acme.com' } });
     orgId = alice.organizationId;
 
-    const loginRes = await request(app).post('/api/v1/auth/login').send({ email: 'alice@acme.com', password: 'alice' });
+    const loginRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'alice@acme.com', password: 'alice' });
     aliceToken = (loginRes.body as { accessToken: string }).accessToken;
 
     await adminPrisma.user.upsert({
@@ -66,7 +68,9 @@ describe('Document Upload (E2E)', () => {
         organizationId: orgId,
       },
     });
-    const viewerRes = await request(app).post('/api/v1/auth/login').send({ email: 'viewer@acme.com', password: 'viewer' });
+    const viewerRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'viewer@acme.com', password: 'viewer' });
     viewerToken = (viewerRes.body as { accessToken: string }).accessToken;
   });
 
