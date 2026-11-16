@@ -3,9 +3,10 @@ import pino, { type Logger } from 'pino';
 import type { Env } from '../config/env.js';
 
 export interface LogContext {
-  requestId?: string;
-  userId?: string;
-  organizationId?: string;
+  requestId?: string | undefined;
+  userId?: string | undefined;
+  organizationId?: string | undefined;
+  ip?: string | undefined;
 }
 
 export const asyncLocalStorage = new AsyncLocalStorage<LogContext>();

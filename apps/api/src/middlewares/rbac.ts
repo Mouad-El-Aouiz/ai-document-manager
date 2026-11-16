@@ -3,7 +3,7 @@ import { AppError } from '../errors/AppError.js';
 
 // Mapping centralisé des permissions par rôle
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  ADMIN: ['*'],
+  ADMIN: ['*'], // inclut audit:read
   EDITOR: [
     'folder:read',
     'folder:create',
@@ -11,9 +11,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'document:read',
     'document:write',
     'tag:read',
-    'tag:write', // AJOUT
+    'tag:write',
   ],
-  VIEWER: ['folder:read', 'document:read', 'tag:read'], // AJOUT
+  VIEWER: ['folder:read', 'document:read', 'tag:read'],
 };
 
 export function requirePermission(permission: string) {
