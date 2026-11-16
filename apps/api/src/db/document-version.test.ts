@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { withTenant } from './with-tenant.js';
+import { withTenant } from '@aidm/shared';
 import { randomUUID } from 'node:crypto';
 
 const appUrl = process.env.DATABASE_URL;

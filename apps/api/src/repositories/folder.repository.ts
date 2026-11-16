@@ -1,5 +1,5 @@
 import type { Folder, Prisma } from '@prisma/client';
-import type { TenantTx } from '../db/with-tenant.js';
+import type { TenantTx } from '@aidm/shared';
 import { z } from 'zod';
 
 const BreadcrumbRowSchema = z.object({

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { TenantTx } from '../db/with-tenant.js';
+import type { TenantTx } from '@aidm/shared';
 import type { StorageProvider } from '../infra/storage/index.js';
 import type { DocumentRepository } from '../repositories/document.repository.js';
 import type { DocumentVersionRepository } from '../repositories/document-version.repository.js';

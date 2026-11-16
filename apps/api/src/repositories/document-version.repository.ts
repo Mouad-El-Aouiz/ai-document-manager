@@ -1,5 +1,5 @@
 import type { DocumentVersion, Prisma } from '@prisma/client';
-import type { TenantTx } from '../db/with-tenant.js';
+import type { TenantTx } from '@aidm/shared';
 
 export interface DocumentVersionRepository {
   create(tx: TenantTx, data: Prisma.DocumentVersionUncheckedCreateInput): Promise<DocumentVersion>;

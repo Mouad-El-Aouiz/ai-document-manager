@@ -2,7 +2,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import type { PrismaClient, User } from '@prisma/client';
 import type { Env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
-import { withTenant } from '../db/with-tenant.js';
+import { withTenant } from '@aidm/shared';
 
 export interface TokenPair {
   accessToken: string;

@@ -1,5 +1,5 @@
 import type { Tag } from '@prisma/client';
-import type { TenantTx } from '../db/with-tenant.js';
+import type { TenantTx } from '@aidm/shared';
 import { tagRepository } from '../repositories/tag.repository.js';
 import { AppError } from '../errors/AppError.js';
 import type { AuditService } from './audit.service.js';

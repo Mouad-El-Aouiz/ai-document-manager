@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { TenantTx } from '../db/with-tenant.js';
-import { withTenant } from '../db/with-tenant.js';
+import type { TenantTx } from '@aidm/shared';
+import { withTenant } from '@aidm/shared';
 import type { PrismaClient, Prisma } from '@prisma/client';
 import type { Logger } from 'pino';
 import { asyncLocalStorage } from '../infra/logger.js';

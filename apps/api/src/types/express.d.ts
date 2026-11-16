@@ -1,5 +1,5 @@
 import type { AccessTokenPayload } from '../services/token.service.js';
-import type { TenantTx } from '../db/with-tenant.js';
+import type { TenantTx } from '@aidm/shared';
 
 declare global {
   namespace Express {
