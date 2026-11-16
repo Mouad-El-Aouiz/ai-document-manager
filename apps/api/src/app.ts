@@ -33,6 +33,9 @@ import { TagService } from './services/tag.service.js';
 import { TagController } from './controllers/tag.controller.js';
 import { documentRepository } from './repositories/document.repository.js';
 import { documentVersionRepository } from './repositories/document-version.repository.js';
+import { AuditController } from './controllers/audit.controller.js';
+import { AuditQueryService } from './services/audit-query.service.js';
+import { auditLogsRouter } from './routes/audit-logs.js';
 
 export interface AppDependencies {
   env: Env;
@@ -83,6 +86,9 @@ export function createApp(deps: AppDependencies): Express {
   const tagService = new TagService(auditService);
   const tagController = new TagController(tagService);
 
+  const auditQueryService = new AuditQueryService();
+  const auditController = new AuditController(auditQueryService);
+
   app.use(healthRouter(deps.prisma, deps.redis));
 
   app.get('/', (_req, res) => {
@@ -96,7 +102,7 @@ export function createApp(deps: AppDependencies): Express {
     documentsRouter(uploadController, documentController, versionController, deps.env, deps.prisma),
   );
   app.use('/api/v1/tags', tagsRouter(tagController, deps.env, deps.prisma));
-
+  app.use('/api/v1/audit-logs', auditLogsRouter(auditController, deps.env, deps.prisma));
   app.post(
     '/test-validation',
     validate({ body: z.object({ name: z.string().min(3) }) }),
@@ -105,7 +111,6 @@ export function createApp(deps: AppDependencies): Express {
       res.json({ received: body });
     },
   );
-
   app.use((_req, _res, next) => {
     next(new AppError(404, 'NOT_FOUND', 'Route not found'));
   });

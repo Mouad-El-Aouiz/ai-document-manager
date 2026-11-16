@@ -196,6 +196,8 @@ model AuditLog {
   entityId       String
   userId         String?
   organizationId String
+  requestId      String?  // AJOUT
+  ip             String?  // AJOUT
   metadata       Json?
   createdAt      DateTime @default(now())
 
@@ -204,6 +206,7 @@ model AuditLog {
 
   @@index([organizationId, createdAt])
   @@index([userId])
+  @@index([action])
 }
 
 model RefreshToken {
