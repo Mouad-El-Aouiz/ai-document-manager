@@ -12,40 +12,38 @@ import { AppError } from './errors/AppError.js';
 import { z } from 'zod';
 import type { PrismaClient } from './infra/prisma.js';
 import type { Redis } from './infra/redis.js';
+import { createStorageProvider } from './infra/storage/index.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
+import { foldersRouter } from './routes/folders.js';
+import { documentsRouter } from './routes/documents.js';
+import { tagsRouter } from './routes/tags.js';
 import { AuthController } from './controllers/auth.controller.js';
 import { AuthService } from './services/auth.service.js';
-import { FolderController } from './controllers/folder.controller.js';
-import { FolderService } from './services/folder.service.js';
 import { AuditService } from './services/audit.service.js';
-import { foldersRouter } from './routes/folders.js';
-import { docsRouter } from './routes/docs.js';
-import { DocumentUploadController } from './controllers/document-upload.controller.js';
+import { FolderService } from './services/folder.service.js';
+import { FolderController } from './controllers/folder.controller.js';
+import { DocumentService } from './services/document.service.js';
+import { DocumentController } from './controllers/document.controller.js';
 import { DocumentUploadService } from './services/document-upload.service.js';
+import { DocumentUploadController } from './controllers/document-upload.controller.js';
+import { DocumentVersionService } from './services/document-version.service.js';
+import { DocumentVersionController } from './controllers/document-version.controller.js';
+import { TagService } from './services/tag.service.js';
+import { TagController } from './controllers/tag.controller.js';
 import { documentRepository } from './repositories/document.repository.js';
 import { documentVersionRepository } from './repositories/document-version.repository.js';
-import { createStorageProvider } from './infra/storage/index.js';
-import { documentsRouter } from './routes/documents.js';
-import type { StorageProvider } from './infra/storage/index.js';
-import { DocumentController } from './controllers/document.controller.js';
-import { DocumentService } from './services/document.service.js';
-import { TagController } from './controllers/tag.controller.js';
-import { TagService } from './services/tag.service.js';
-import { tagsRouter } from './routes/tags.js';
 
 export interface AppDependencies {
   env: Env;
   logger: Logger;
   prisma: PrismaClient;
   redis: Redis;
-  storage?: StorageProvider;
 }
 
 export function createApp(deps: AppDependencies): Express {
   const app = express();
 
-  // 1. Contexte & Logs
   app.use(requestContext());
   app.use(
     pinoHttp({
@@ -54,37 +52,19 @@ export function createApp(deps: AppDependencies): Express {
     }),
   );
 
-  // 2. Sécurité
-  app.use(
-    helmet({
-      contentSecurityPolicy:
-        deps.env.NODE_ENV === 'production'
-          ? true
-          : {
-              directives: {
-                defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
-                styleSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
-                imgSrc: ["'self'", 'data:', 'https://unpkg.com'],
-                connectSrc: ["'self'", 'https://unpkg.com'],
-              },
-            },
-    }),
-  );
+  app.use(helmet());
   app.use(cors({ origin: deps.env.CORS_ORIGINS, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
 
-  // 3. Health
-  app.use(healthRouter(deps.prisma, deps.redis));
-
-  // 4. Services & Controllers
+  const storage = createStorageProvider(deps.env);
+  const auditService = new AuditService(deps.prisma, deps.logger);
   const authService = new AuthService(deps.prisma, deps.env, deps.logger);
   const authController = new AuthController(authService, deps.env);
-  const auditService = new AuditService(deps.prisma, deps.logger);
+
   const folderService = new FolderService(auditService);
   const folderController = new FolderController(folderService);
-  const storage = deps.storage ?? createStorageProvider(deps.env);
+
   const uploadService = new DocumentUploadService(
     documentRepository,
     documentVersionRepository,
@@ -93,40 +73,43 @@ export function createApp(deps: AppDependencies): Express {
     deps.env,
   );
   const uploadController = new DocumentUploadController(uploadService);
+
   const documentService = new DocumentService(storage, auditService);
   const documentController = new DocumentController(documentService);
+
+  const versionService = new DocumentVersionService(storage, auditService, uploadService);
+  const versionController = new DocumentVersionController(uploadService, versionService);
+
   const tagService = new TagService(auditService);
   const tagController = new TagController(tagService);
 
-  // 5. Routes
+  app.use(healthRouter(deps.prisma, deps.redis));
+
   app.get('/', (_req, res) => {
     res.json({ message: 'API is running', env: deps.env.NODE_ENV });
   });
+
+  app.use('/api/v1/auth', authRouter(authController, deps.redis, deps.env));
+  app.use('/api/v1/folders', foldersRouter(folderController, deps.env, deps.prisma));
+  app.use(
+    '/api/v1/documents',
+    documentsRouter(uploadController, documentController, versionController, deps.env, deps.prisma),
+  );
+  app.use('/api/v1/tags', tagsRouter(tagController, deps.env, deps.prisma));
+
   app.post(
     '/test-validation',
     validate({ body: z.object({ name: z.string().min(3) }) }),
     (req, res) => {
-      // Le middleware `validate` a déjà parsé et remplacé req.body par un objet typé.
-      // On cast pour satisfaire ESLint (req.body est typé any dans les types Express).
       const body = req.body as { name: string };
       res.json({ received: body });
     },
   );
-  app.use('/api/v1/auth', authRouter(authController, deps.redis, deps.env));
-  app.use('/api/v1/folders', foldersRouter(folderController, deps.env, deps.prisma));
-  app.use('/api/v1', docsRouter(deps.env));
-  app.use(
-    '/api/v1/documents',
-    documentsRouter(uploadController, documentController, deps.env, deps.prisma),
-  );
-  app.use('/api/v1/tags', tagsRouter(tagController, deps.env, deps.prisma));
 
-  // 6. 404 Handler
   app.use((_req, _res, next) => {
     next(new AppError(404, 'NOT_FOUND', 'Route not found'));
   });
 
-  // 7. Error Handler
   app.use(errorHandler(deps.logger));
 
   return app;

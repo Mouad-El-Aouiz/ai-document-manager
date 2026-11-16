@@ -26,6 +26,9 @@ const envSchema = z.object({
   S3_REGION: z.string().default('us-east-1'),
   S3_UPLOAD_TTL_SECONDS: z.coerce.number().int().positive().default(600),
   S3_DOWNLOAD_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  RETENTION_FREE_VERSIONS: z.coerce.number().int().positive().default(3),
+  RETENTION_PRO_VERSIONS: z.coerce.number().int().positive().default(10),
+  RETENTION_ENTERPRISE_VERSIONS: z.coerce.number().int().positive().default(50),
 
   // Documents (avec valeur par défaut)
   MAX_FILE_SIZE_BYTES: z.coerce.number().int().positive().default(104857600), // 100 MB
