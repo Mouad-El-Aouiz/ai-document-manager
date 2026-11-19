@@ -104,34 +104,91 @@ docs/adr/    Une décision = un fichier
 3 jobs parallèles sur chaque PR vers main : lint, test (Postgres en
 service), docker (compose up --wait). Voir ADR-0002.
 
-## API (Phase 4)
+## API
 
-### Endpoints
+Toutes les routes métier sont sous `/api/v1/`, protégées par JWT (Bearer) et isolées par RLS. Le healthcheck reste à la racine.
 
-| Méthode | Route                  | Auth   | Description                          |
-| ------- | ---------------------- | ------ | ------------------------------------ |
-| `GET`   | `/health`              | —      | Readiness (Postgres + Redis)         |
-| `GET`   | `/health/live`         | —      | Liveness (process)                   |
-| `POST`  | `/api/v1/auth/login`   | —      | Login (body : `{ email, password }`) |
-| `POST`  | `/api/v1/auth/refresh` | Cookie | Rotation du refresh token            |
-| `POST`  | `/api/v1/auth/logout`  | Cookie | Révocation du refresh token          |
-| `GET`   | `/api/v1/auth/me`      | Bearer | Utilisateur courant                  |
-| `GET`   | `/api/v1/folders`      | Bearer | Dossiers de l'organisation           |
-| `GET`   | `/api/v1/docs`         | —      | OpenAPI (JSON)                       |
-| `GET`   | `/api/v1/docs/ui`      | —      | Swagger UI (dev uniquement)          |
+### Authentification
 
-### Démarrage local
+| Méthode | Route                  | Auth   | Description                   |
+| ------- | ---------------------- | ------ | ----------------------------- |
+| `POST`  | `/api/v1/auth/login`   | —      | Login (`{ email, password }`) |
+| `POST`  | `/api/v1/auth/refresh` | Cookie | Rotation refresh token        |
+| `POST`  | `/api/v1/auth/logout`  | Cookie | Révocation refresh            |
+| `GET`   | `/api/v1/auth/me`      | Bearer | Utilisateur courant           |
 
-```bash
-pnpm --filter @aidm/api dev
-# → http://localhost:3000
-# → http://localhost:3000/api/v1/docs/ui (Swagger)
+### Dossiers
 
-**Docker**
-docker build -f apps/api/Dockerfile -t aidm-api .
-docker run -p 3000:3000 --env-file .env aidm-api
+| Méthode  | Route                            | Permission      |
+| -------- | -------------------------------- | --------------- |
+| `GET`    | `/api/v1/folders?parentId=`      | `folder:read`   |
+| `POST`   | `/api/v1/folders`                | `folder:create` |
+| `GET`    | `/api/v1/folders/:id`            | `folder:read`   |
+| `PATCH`  | `/api/v1/folders/:id`            | `folder:update` |
+| `PATCH`  | `/api/v1/folders/:id/move`       | `folder:update` |
+| `GET`    | `/api/v1/folders/:id/breadcrumb` | `folder:read`   |
+| `DELETE` | `/api/v1/folders/:id`            | `folder:delete` |
 
-**Tests**
-pnpm --filter @aidm/api test          # 49 tests
-pnpm --filter @aidm/api test -- --coverage
-```
+### Documents
+
+| Méthode  | Route                                                | Permission        |
+| -------- | ---------------------------------------------------- | ----------------- |
+| `POST`   | `/api/v1/documents/uploads`                          | `document:write`  |
+| `POST`   | `/api/v1/documents/uploads/:versionId/complete`      | `document:write`  |
+| `GET`    | `/api/v1/documents?cursor=&limit=&folderId=&q=&tag=` | `document:read`   |
+| `GET`    | `/api/v1/documents/:id`                              | `document:read`   |
+| `GET`    | `/api/v1/documents/:id/download`                     | `document:read`   |
+| `PATCH`  | `/api/v1/documents/:id`                              | `document:write`  |
+| `PATCH`  | `/api/v1/documents/:id/metadata`                     | `document:write`  |
+| `PUT`    | `/api/v1/documents/:id/tags`                         | `document:write`  |
+| `DELETE` | `/api/v1/documents/:id`                              | `document:delete` |
+
+### Versions
+
+| Méthode | Route                                                | Permission       |
+| ------- | ---------------------------------------------------- | ---------------- |
+| `GET`   | `/api/v1/documents/:id/versions`                     | `document:read`  |
+| `POST`  | `/api/v1/documents/:id/versions`                     | `document:write` |
+| `POST`  | `/api/v1/documents/:id/versions/:versionId/complete` | `document:write` |
+| `GET`   | `/api/v1/documents/:id/versions/:versionId/download` | `document:read`  |
+| `POST`  | `/api/v1/documents/:id/versions/:versionId/restore`  | `document:write` |
+
+### Tags
+
+| Méthode  | Route              | Permission  |
+| -------- | ------------------ | ----------- |
+| `GET`    | `/api/v1/tags`     | `tag:read`  |
+| `POST`   | `/api/v1/tags`     | `tag:write` |
+| `PATCH`  | `/api/v1/tags/:id` | `tag:write` |
+| `DELETE` | `/api/v1/tags/:id` | `tag:write` |
+
+### Audit
+
+| Méthode | Route                                                                                          | Permission           |
+| ------- | ---------------------------------------------------------------------------------------------- | -------------------- |
+| `GET`   | `/api/v1/audit-logs?cursor=&limit=&action=&entityType=&entityId=&actorId=&startDate=&endDate=` | `audit:read` (ADMIN) |
+
+### Documentation
+
+- `GET /api/v1/docs` — spec OpenAPI (JSON)
+- `GET /api/v1/docs/ui` — Swagger UI (dev uniquement)
+
+### Matrice RBAC
+
+| Rôle       | folder:read | folder:create | folder:update | folder:delete | document:read | document:write | document:delete | tag:read | tag:write | audit:read |
+| ---------- | ----------- | ------------- | ------------- | ------------- | ------------- | -------------- | --------------- | -------- | --------- | ---------- |
+| **ADMIN**  | ✅          | ✅            | ✅            | ✅            | ✅            | ✅             | ✅              | ✅       | ✅        | ✅         |
+| **EDITOR** | ✅          | ✅            | ✅            | ❌            | ✅            | ✅             | ❌              | ✅       | ✅        | ❌         |
+| **VIEWER** | ✅          | ❌            | ❌            | ❌            | ✅            | ❌             | ❌              | ✅       | ❌        | ❌         |
+
+## Worker de maintenance
+
+Le worker `apps/worker` exécute trois jobs récurrents :
+
+| Job                       | Fréquence     | Action                                                 |
+| ------------------------- | ------------- | ------------------------------------------------------ |
+| `cleanup-pending-uploads` | toutes les 6h | Supprime les uploads `PENDING_UPLOAD` > 24h            |
+| `purge-deleted-items`     | 1x/jour à 3h  | Hard-delete des documents/dossiers soft-deleted > 30j  |
+| `purge-old-versions`      | 1x/jour à 4h  | Supprime les versions au-delà de la rétention par plan |
+
+Lancement : `pnpm --filter @aidm/worker dev`.
