@@ -8,23 +8,19 @@ if (!migrateUrl) {
 
 const prisma = new PrismaClient({ datasourceUrl: migrateUrl });
 
-async function main() {
-  const passwordHashAlice = await argon2.hash('alice');
-  const passwordHashBob = await argon2.hash('bob');
-  const passwordHashCharlie = await argon2.hash('charlie');
+async function main(): Promise<void> {
+  const [aliceHash, bobHash, charlieHash] = await Promise.all([
+    argon2.hash('alice'),
+    argon2.hash('bob'),
+    argon2.hash('charlie'),
+  ]);
 
   await prisma.$transaction(async (tx) => {
-    // ────────────────────────────────────────────────────────────────
-    // ORG 1 : Acme Corp
-    // ────────────────────────────────────────────────────────────────
-    const org = await tx.organization.upsert({
+    // ─── Org 1 : Acme Corp ───
+    const acme = await tx.organization.upsert({
       where: { slug: 'acme-corp' },
       update: {},
-      create: {
-        name: 'Acme Corp',
-        slug: 'acme-corp',
-        plan: 'FREE',
-      },
+      create: { name: 'Acme Corp', slug: 'acme-corp', plan: 'FREE' },
     });
 
     const alice = await tx.user.upsert({
@@ -32,9 +28,9 @@ async function main() {
       update: {},
       create: {
         email: 'alice@acme.com',
-        passwordHash: passwordHashAlice,
+        passwordHash: aliceHash,
         role: 'ADMIN',
-        organizationId: org.id,
+        organizationId: acme.id,
       },
     });
 
@@ -43,75 +39,129 @@ async function main() {
       update: {},
       create: {
         email: 'bob@acme.com',
-        passwordHash: passwordHashBob,
+        passwordHash: bobHash,
         role: 'EDITOR',
-        organizationId: org.id,
+        organizationId: acme.id,
       },
     });
 
-    const contractsFolder = await tx.folder.upsert({
+    // Arborescence : Contrats > 2025 > Clients
+    const contracts = await tx.folder.upsert({
       where: { id: 'seed-folder-contracts' },
       update: {},
       create: {
         id: 'seed-folder-contracts',
         name: 'Contrats',
-        organizationId: org.id,
+        organizationId: acme.id,
         createdById: alice.id,
       },
     });
 
-    // ────────────────────────────────────────────────────────────────
-    // Document avec sa version (nouveau modèle 5.4)
-    // ────────────────────────────────────────────────────────────────
-    const docId = 'seed-document-placeholder';
-    const doc = await tx.document.upsert({
-      where: { id: docId },
+    const contracts2025 = await tx.folder.upsert({
+      where: { id: 'seed-folder-contracts-2025' },
       update: {},
       create: {
-        id: docId,
-        name: 'placeholder.pdf',
-        folderId: contractsFolder.id,
-        organizationId: org.id,
-        uploadedById: alice.id,
+        id: 'seed-folder-contracts-2025',
+        name: '2025',
+        organizationId: acme.id,
+        createdById: alice.id,
+        parentId: contracts.id,
       },
     });
 
-    let version = await tx.documentVersion.findFirst({
-      where: { documentId: doc.id },
-    });
-
-    version ??= await tx.documentVersion.create({
-      data: {
-        documentId: doc.id,
-        organizationId: org.id,
-        versionNumber: 1,
-        storageKey: 'seed/placeholder.pdf',
-        originalFilename: 'placeholder.pdf',
-        mimeType: 'application/pdf',
-        sizeBytes: 0,
-        checksumSha256: '',
-        status: 'PENDING_UPLOAD',
-        uploadedById: alice.id,
+    await tx.folder.upsert({
+      where: { id: 'seed-folder-contracts-2025-clients' },
+      update: {},
+      create: {
+        id: 'seed-folder-contracts-2025-clients',
+        name: 'Clients',
+        organizationId: acme.id,
+        createdById: alice.id,
+        parentId: contracts2025.id,
       },
     });
 
-    // Lier la version au document
-    await tx.document.update({
-      where: { id: doc.id },
-      data: { currentVersionId: version.id },
+    // Tags
+    const urgent = await tx.tag.upsert({
+      where: { organizationId_name: { organizationId: acme.id, name: 'urgent' } },
+      update: {},
+      create: { organizationId: acme.id, name: 'urgent', color: '#FF0000' },
     });
 
-    // ────────────────────────────────────────────────────────────────
-    // ORG 2 : Beta Corp (pour les tests d'isolation)
-    // ────────────────────────────────────────────────────────────────
-    const betaOrg = await tx.organization.upsert({
+    const finance = await tx.tag.upsert({
+      where: { organizationId_name: { organizationId: acme.id, name: 'finance' } },
+      update: {},
+      create: { organizationId: acme.id, name: 'finance', color: '#00AA00' },
+    });
+
+    // Document avec 2 versions
+    const docId = 'seed-document-contract-001';
+    const existingDoc = await tx.document.findUnique({ where: { id: docId } });
+
+    if (!existingDoc) {
+      // 1. Créer le Document en premier (sans currentVersionId, la FK composite l'exige)
+      await tx.document.create({
+        data: {
+          id: docId,
+          name: 'Contrat Acme 2025.pdf',
+          folderId: contracts2025.id,
+          organizationId: acme.id,
+          uploadedById: alice.id,
+          metadata: { author: 'Alice', year: 2025, category: 'contract' },
+        },
+      });
+
+      // 2. Créer les versions (le Document existe maintenant)
+      await tx.documentVersion.create({
+        data: {
+          documentId: docId,
+          organizationId: acme.id,
+          versionNumber: 1,
+          storageKey: `org/${acme.id}/doc/${docId}/v/v1`,
+          originalFilename: 'contrat-acme-v1.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 12345,
+          checksumSha256: '',
+          status: 'READY',
+          uploadedById: alice.id,
+        },
+      });
+
+      const v2 = await tx.documentVersion.create({
+        data: {
+          documentId: docId,
+          organizationId: acme.id,
+          versionNumber: 2,
+          storageKey: `org/${acme.id}/doc/${docId}/v/v2`,
+          originalFilename: 'contrat-acme-v2.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 13000,
+          checksumSha256: '',
+          status: 'READY',
+          uploadedById: alice.id,
+        },
+      });
+
+      // 3. Mettre à jour currentVersionId
+      await tx.document.update({
+        where: { id: docId },
+        data: { currentVersionId: v2.id },
+      });
+
+      // 4. Associer les tags
+      await tx.documentTag.createMany({
+        data: [
+          { documentId: docId, tagId: urgent.id },
+          { documentId: docId, tagId: finance.id },
+        ],
+      });
+    }
+
+    // ─── Org 2 : Beta Corp ───
+    const beta = await tx.organization.upsert({
       where: { slug: 'beta-corp' },
       update: {},
-      create: {
-        name: 'Beta Corp',
-        slug: 'beta-corp',
-        plan: 'PRO',
-      },
+      create: { name: 'Beta Corp', slug: 'beta-corp', plan: 'PRO' },
     });
 
     const charlie = await tx.user.upsert({
@@ -119,9 +169,9 @@ async function main() {
       update: {},
       create: {
         email: 'charlie@beta.com',
-        passwordHash: passwordHashCharlie,
+        passwordHash: charlieHash,
         role: 'ADMIN',
-        organizationId: betaOrg.id,
+        organizationId: beta.id,
       },
     });
 
@@ -131,12 +181,12 @@ async function main() {
       create: {
         id: 'seed-folder-beta',
         name: 'Dossier Beta',
-        organizationId: betaOrg.id,
+        organizationId: beta.id,
         createdById: charlie.id,
       },
     });
 
-    console.log('Seed completed: Acme Corp & Beta Corp ready.');
+    console.log('Seed completed: Acme Corp + Beta Corp ready (users, folders, tags, versions).');
   });
 }
 

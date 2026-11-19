@@ -6,13 +6,13 @@ export function docsRouter(env: Env): Router {
   const router = Router();
   const doc = generateOpenApiDocument();
 
-  router.get('/docs', (req, res) => {
+  // On retire le '/docs' du path car il est déjà dans app.use('/api/v1/docs', ...)
+  router.get('/', (req, res) => {
     res.json(doc);
   });
 
-  // En dev, on ajoute une UI simple
   if (env.NODE_ENV !== 'production') {
-    router.get('/docs/ui', (req, res) => {
+    router.get('/ui', (req, res) => {
       res.send(`<!DOCTYPE html>
 <html><head><title>API Docs</title>
 <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">

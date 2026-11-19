@@ -31,7 +31,6 @@ describe('Document Metadata & Tags', () => {
   const adminUrl = process.env.DATABASE_URL_MIGRATE;
   if (!adminUrl) throw new Error('DATABASE_URL_MIGRATE required');
   const adminPrisma = new PrismaClient({ datasourceUrl: adminUrl });
-
   const app = createApp({ env, logger, prisma, redis });
 
   let aliceToken = '';
@@ -45,7 +44,11 @@ describe('Document Metadata & Tags', () => {
 
     const alice = await adminPrisma.user.findUniqueOrThrow({ where: { email: 'alice@acme.com' } });
     const doc = await adminPrisma.document.create({
-      data: { name: 'meta-test.txt', organizationId: alice.organizationId, uploadedById: alice.id },
+      data: {
+        name: `meta-test-${Date.now()}.txt`,
+        organizationId: alice.organizationId,
+        uploadedById: alice.id,
+      },
     });
     docId = doc.id;
   });
@@ -83,40 +86,34 @@ describe('Document Metadata & Tags', () => {
   });
 
   it('should replace tags on a document', async () => {
-    // Noms uniques pour éviter les conflits entre exécutions
-    const suffix = Date.now().toString();
-    const tagName1 = `urgent-${suffix}`;
-    const tagName2 = `finance-${suffix}`;
+    const ts = Date.now();
+    const uniqueName1 = `meta-urgent-${ts}`;
+    const uniqueName2 = `meta-finance-${ts}`;
 
     const tag1 = await request(app)
       .post('/api/v1/tags')
       .set('Authorization', `Bearer ${aliceToken}`)
-      .send({ name: tagName1 });
+      .send({ name: uniqueName1 });
+    expect(tag1.status).toBe(201);
     const tag2 = await request(app)
       .post('/api/v1/tags')
       .set('Authorization', `Bearer ${aliceToken}`)
-      .send({ name: tagName2 });
-
-    expect(tag1.status).toBe(201);
+      .send({ name: uniqueName2 });
     expect(tag2.status).toBe(201);
 
     const tag1Id = (tag1.body as { tag: { id: string } }).tag.id;
     const tag2Id = (tag2.body as { tag: { id: string } }).tag.id;
 
-    // Premier remplacement : 2 tags
     const res = await request(app)
       .put(`/api/v1/documents/${docId}/tags`)
       .set('Authorization', `Bearer ${aliceToken}`)
       .send({ tagIds: [tag1Id, tag2Id] });
-
     expect(res.status).toBe(200);
 
-    // Deuxième remplacement : 1 seul tag (idempotence)
     const res2 = await request(app)
       .put(`/api/v1/documents/${docId}/tags`)
       .set('Authorization', `Bearer ${aliceToken}`)
       .send({ tagIds: [tag1Id] });
-
     expect(res2.status).toBe(200);
   });
 });
