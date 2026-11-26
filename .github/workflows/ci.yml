@@ -101,6 +101,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared package
+        run: pnpm --filter @aidm/shared build
+
       - name: Create pgvector extension
         run: psql "postgresql://postgres:postgres@localhost:5432/aidm" -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
@@ -147,6 +150,9 @@ jobs:
       - name: Run tests with Vitest
         run: pnpm --filter @aidm/api test
 
+      - name: Run worker tests
+        run: pnpm --filter @aidm/worker test
+
       - name: Cleanup Silo
         if: always()
         run: docker rm -f aidm-silo
@@ -162,7 +168,7 @@ jobs:
         run: cp .env.example .env
 
       - name: Start infra and wait for healthchecks
-        run: docker compose up -d --wait
+        run: docker compose up -d --build --wait --wait-timeout 300
 
       - name: Show running services
         if: always()

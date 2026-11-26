@@ -10,7 +10,7 @@ describe.skipIf(!process.env['USE_REAL_S3_IN_TESTS'])('S3StorageProvider (Integr
     JWT_ACCESS_SECRET: 'a'.repeat(32),
     JWT_REFRESH_SECRET: 'b'.repeat(32),
     CORS_ORIGINS: 'http://localhost:3000',
-    S3_ENDPOINT: 'http://localhost:9000',        // <-- Force localhost
+    S3_ENDPOINT: 'http://localhost:9000', // <-- Force localhost
     S3_PUBLIC_ENDPOINT: 'http://localhost:9000', // <-- Force localhost
     S3_ACCESS_KEY: process.env['S3_ACCESS_KEY'],
     S3_SECRET_KEY: process.env['S3_SECRET_KEY'],

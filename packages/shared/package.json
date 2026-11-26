@@ -16,6 +16,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@prisma/client": "^6.1.0",
+    "zod": "^3.23.8"
+  },
   "peerDependencies": {
     "@prisma/client": "^6.1.0",
     "zod": "^3.23.8"

@@ -5,7 +5,7 @@ const uuidSchema = z.string().uuid();
 
 export type TenantTx = Prisma.TransactionClient;
 
-export function withTenant<T>(
+export async function withTenant<T>(
   prisma: PrismaClient,
   organizationId: string,
   fn: (tx: TenantTx) => Promise<T>,

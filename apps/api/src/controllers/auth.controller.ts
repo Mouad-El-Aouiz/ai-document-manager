@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import type { AuthService } from '../services/auth.service.js';
 import type { Env } from '../config/env.js';
 import { z } from 'zod';
+import { AppError } from '../errors/AppError.js';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -13,7 +14,7 @@ const cookieOptions = (env: Env) => ({
   secure: env.NODE_ENV === 'production',
   sameSite: 'strict' as const,
   path: '/api/v1/auth',
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+  maxAge: 7 * 24 * 60 * 60 * 1000,
 });
 
 export class AuthController {
@@ -34,13 +35,9 @@ export class AuthController {
   }
 
   async refresh(req: Request, res: Response): Promise<void> {
-    const cookies = req.cookies as Record<string, string | undefined>;
-    const rawToken = cookies.refresh_token;
-
-    if (!rawToken) {
-      res
-        .status(401)
-        .json({ error: { code: 'UNAUTHENTICATED', message: 'Missing refresh token' } });
+    const rawToken = req.cookies['refresh_token'];
+    if (!rawToken || typeof rawToken !== 'string') {
+      res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'Missing refresh token' } });
       return;
     }
 
@@ -50,13 +47,22 @@ export class AuthController {
   }
 
   async logout(req: Request, res: Response): Promise<void> {
-    const cookies = req.cookies as Record<string, string | undefined>;
-    const rawToken = cookies.refresh_token;
-
-    if (rawToken) {
+    const rawToken = req.cookies['refresh_token'];
+    if (rawToken && typeof rawToken === 'string') {
       await this.authService.logout(rawToken);
     }
     res.clearCookie('refresh_token', { path: '/api/v1/auth' });
     res.status(204).send();
+  }
+
+  // ── NOUVEAU : Récupérer le profil de l'utilisateur connecté ──
+  async me(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new AppError(401, 'UNAUTHENTICATED', 'Authentication required');
+    }
+    
+    // req.auth est rempli par le middleware authenticate (sub = userId, org = orgId)
+    const user = await this.authService.me(req.auth.sub, req.auth.org);
+    res.status(200).json({ user });
   }
 }

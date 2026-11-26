@@ -1,17 +1,25 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient, User } from '@prisma/client';
 import type { Env } from '../config/env.js';
 import { PasswordService } from './password.service.js';
 import { TokenService } from './token.service.js';
 import { RefreshTokenService } from './refresh-token.service.js';
 import { AuditService } from './audit.service.js';
 import { authLookupUser } from '../db/auth-lookup.js';
+import { withTenant } from '@aidm/shared';
 import { AppError } from '../errors/AppError.js';
 import type { Logger } from 'pino';
+import type { UserRole } from '@prisma/client';
 
 export interface LoginResult {
   accessToken: string;
   refreshToken: string;
   user: { id: string; email: string; role: string };
+}
+
+export interface MeResult {
+  id: string;
+  email: string;
+  role: string;
 }
 
 export class AuthService {
@@ -37,6 +45,8 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
   ): Promise<LoginResult> {
+    // ⚠️ User est sous RLS. On DOIT passer par authLookupUser (SECURITY DEFINER).
+    // Ne JAMAIS utiliser this.prisma.user.findUnique() ici.
     const user = await authLookupUser(this.prisma, email);
 
     if (!user) {
@@ -56,19 +66,17 @@ export class AuthService {
     const accessToken = await this.tokenService.signAccessToken({
       sub: user.id,
       org: user.organizationId,
-      role: user.role as 'ADMIN' | 'EDITOR' | 'VIEWER',
+      role: user.role as UserRole,
     });
 
-    const fullUser = {
-      id: user.id,
-      organizationId: user.organizationId,
-      email,
-      passwordHash: user.passwordHash,
-      role: user.role as 'ADMIN' | 'EDITOR' | 'VIEWER',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    const refreshToken = await this.refreshTokenService.issueInitialToken(fullUser, ip, userAgent);
+    const fullUser = await withTenant(this.prisma, user.organizationId, (tx) =>
+      tx.user.findUniqueOrThrow({ where: { id: user.id } }),
+    );
+    const refreshToken = await this.refreshTokenService.issueInitialToken(
+      fullUser,
+      ip,
+      userAgent,
+    );
 
     await this.auditService.log('LOGIN_SUCCESS', user.organizationId, user.id, { ip });
 
@@ -84,7 +92,11 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const result = await this.refreshTokenService.rotateToken(rawRefreshToken, ip, userAgent);
+    const result = await this.refreshTokenService.rotateToken(
+      rawRefreshToken,
+      ip,
+      userAgent,
+    );
 
     const accessToken = await this.tokenService.signAccessToken({
       sub: result.user.id,
@@ -99,16 +111,20 @@ export class AuthService {
     await this.refreshTokenService.revokeToken(rawRefreshToken);
   }
 
-  async me(
-    userId: string,
-    organizationId: string,
-  ): Promise<{ id: string; email: string; role: string }> {
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, organizationId },
-    });
+  /**
+   * Retourne l'utilisateur courant.
+   * ⚠️ User est sous RLS → on doit utiliser withTenant.
+   * On a l'orgId dans le JWT (via `req.auth.org`), donc pas besoin de SECURITY DEFINER.
+   */
+  async me(userId: string, organizationId: string): Promise<MeResult> {
+    const user = await withTenant(this.prisma, organizationId, (tx) =>
+      tx.user.findUnique({ where: { id: userId } }),
+    );
+
     if (!user) {
       throw new AppError(404, 'NOT_FOUND', 'User not found');
     }
+
     return { id: user.id, email: user.email, role: user.role };
   }
 }

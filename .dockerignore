@@ -1,0 +1,43 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build output
+dist
+coverage
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+.env.local
+
+# Git / CI
+.git
+.github
+.vscode
+.idea
+
+# Tests
+**/__tests__
+**/*.test.ts
+**/*.spec.ts
+**/vitest.config.ts
+**/playwright.config.ts
+
+# Docs (pas nécessaire dans l'image)
+docs
+*.md
+!README.md
+
+# Docker
+**/Dockerfile
+**/.dockerignore
+
+# Logs
+*.log
+logs
+
+# OS
+.DS_Store
+Thumbs.db
