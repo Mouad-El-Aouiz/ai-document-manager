@@ -21,7 +21,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly env: Env,
-  ) {}
+  ) { }
 
   async login(req: Request, res: Response): Promise<void> {
     const { email, password } = loginSchema.parse(req.body);
@@ -35,8 +35,8 @@ export class AuthController {
   }
 
   async refresh(req: Request, res: Response): Promise<void> {
-    const rawToken = req.cookies['refresh_token'];
-    if (!rawToken || typeof rawToken !== 'string') {
+    const rawToken: unknown = req.cookies.refresh_token;
+    if (typeof rawToken !== 'string' || rawToken.length === 0) {
       res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'Missing refresh token' } });
       return;
     }
@@ -47,8 +47,8 @@ export class AuthController {
   }
 
   async logout(req: Request, res: Response): Promise<void> {
-    const rawToken = req.cookies['refresh_token'];
-    if (rawToken && typeof rawToken === 'string') {
+    const rawToken: unknown = req.cookies.refresh_token;
+    if (typeof rawToken === 'string' && rawToken.length > 0) {
       await this.authService.logout(rawToken);
     }
     res.clearCookie('refresh_token', { path: '/api/v1/auth' });
@@ -60,7 +60,7 @@ export class AuthController {
     if (!req.auth) {
       throw new AppError(401, 'UNAUTHENTICATED', 'Authentication required');
     }
-    
+
     // req.auth est rempli par le middleware authenticate (sub = userId, org = orgId)
     const user = await this.authService.me(req.auth.sub, req.auth.org);
     res.status(200).json({ user });

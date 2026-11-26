@@ -1,4 +1,4 @@
-import type { PrismaClient, User } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import type { Env } from '../config/env.js';
 import { PasswordService } from './password.service.js';
 import { TokenService } from './token.service.js';
