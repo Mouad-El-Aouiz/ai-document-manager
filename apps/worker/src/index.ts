@@ -1,5 +1,4 @@
-// Placeholder — remplacé par le worker BullMQ à l'étape 1.2.
-export const PACKAGE_NAME = '@aidm/worker';
+import { createServer, type Server } from 'node:http';
 import { Worker } from 'bullmq';
 import pino from 'pino';
 import { loadEnv } from './config/env.js';
@@ -65,16 +64,39 @@ async function main(): Promise<void> {
     logger.error({ job: job?.name, err }, 'Job failed');
   });
 
+  // ── Healthcheck HTTP minimal (Docker HEALTHCHECK) ──
+  const healthServer: Server = createServer((req, res) => {
+    if (req.url === '/health/live' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok' }));
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  healthServer.listen(3001, () => {
+    logger.info('Worker healthcheck listening on port 3001');
+  });
+
   const shutdown = async (): Promise<void> => {
     logger.info('Worker shutting down...');
+    await new Promise<void>((resolve) => {
+      healthServer.close(() => {
+        resolve();
+      });
+    });
     await worker.close();
     await queue.close();
     await redis.quit();
     await prisma.$disconnect();
     process.exit(0);
   };
-  process.on('SIGTERM', () => void shutdown());
-  process.on('SIGINT', () => void shutdown());
+  process.on('SIGTERM', () => {
+    void shutdown();
+  });
+  process.on('SIGINT', () => {
+    void shutdown();
+  });
 
   logger.info('Worker started, waiting for jobs...');
 }

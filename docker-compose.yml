@@ -1,6 +1,9 @@
 name: aidm
 
 services:
+  # ────────────────────────────────────────────────
+  # Infrastructure
+  # ────────────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
     container_name: aidm-postgres
@@ -10,7 +13,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
@@ -20,8 +23,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
-    networks:
-      - aidm-network
+    networks: [aidm-network]
 
   redis:
     image: redis:7-alpine
@@ -37,8 +39,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-    networks:
-      - aidm-network
+    networks: [aidm-network]
 
   minio:
     image: pgsty/silo:latest
@@ -48,8 +49,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - '9000:9000' # API S3
-      - '9001:9001' # Console web
+      - '9000:9000'
+      - '9001:9001'
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -59,8 +60,99 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
-    networks:
-      - aidm-network
+    networks: [aidm-network]
+
+  # ────────────────────────────────────────────────
+  # Migrations + RLS + Seed (one-shot)
+  # ────────────────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: builder
+    container_name: aidm-migrate
+    command: ['sh', '/app/apps/api/scripts/docker-migrate.sh']
+    environment:
+      DATABASE_URL: postgresql://aidm_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      DATABASE_URL_MIGRATE: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    networks: [aidm-network]
+  # ────────────────────────────────────────────────
+  # API
+  # ────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: aidm-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://aidm_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      LOG_LEVEL: ${LOG_LEVEL}
+      ALLOWED_MIME_TYPES: ${ALLOWED_MIME_TYPES}
+      MAX_FILE_SIZE_BYTES: ${MAX_FILE_SIZE_BYTES}
+    ports:
+      - '3000:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [aidm-network]
+
+  # ────────────────────────────────────────────────
+  # Worker
+  # ────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    container_name: aidm-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://aidm_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      DATABASE_URL_MIGRATE: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION}
+      LOG_LEVEL: ${LOG_LEVEL}
+      PENDING_UPLOAD_TTL_HOURS: ${PENDING_UPLOAD_TTL_HOURS}
+      SOFT_DELETE_RETENTION_DAYS: ${SOFT_DELETE_RETENTION_DAYS}
+      RETENTION_FREE_VERSIONS: ${RETENTION_FREE_VERSIONS}
+      RETENTION_PRO_VERSIONS: ${RETENTION_PRO_VERSIONS}
+      RETENTION_ENTERPRISE_VERSIONS: ${RETENTION_ENTERPRISE_VERSIONS}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [aidm-network]
 
 volumes:
   postgres_data:
