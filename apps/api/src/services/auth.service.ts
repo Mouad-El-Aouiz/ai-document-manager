@@ -72,11 +72,7 @@ export class AuthService {
     const fullUser = await withTenant(this.prisma, user.organizationId, (tx) =>
       tx.user.findUniqueOrThrow({ where: { id: user.id } }),
     );
-    const refreshToken = await this.refreshTokenService.issueInitialToken(
-      fullUser,
-      ip,
-      userAgent,
-    );
+    const refreshToken = await this.refreshTokenService.issueInitialToken(fullUser, ip, userAgent);
 
     await this.auditService.log('LOGIN_SUCCESS', user.organizationId, user.id, { ip });
 
@@ -92,11 +88,7 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const result = await this.refreshTokenService.rotateToken(
-      rawRefreshToken,
-      ip,
-      userAgent,
-    );
+    const result = await this.refreshTokenService.rotateToken(rawRefreshToken, ip, userAgent);
 
     const accessToken = await this.tokenService.signAccessToken({
       sub: result.user.id,

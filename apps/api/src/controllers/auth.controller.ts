@@ -21,7 +21,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly env: Env,
-  ) { }
+  ) {}
 
   async login(req: Request, res: Response): Promise<void> {
     const { email, password } = loginSchema.parse(req.body);
@@ -37,7 +37,9 @@ export class AuthController {
   async refresh(req: Request, res: Response): Promise<void> {
     const rawToken: unknown = req.cookies.refresh_token;
     if (typeof rawToken !== 'string' || rawToken.length === 0) {
-      res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'Missing refresh token' } });
+      res
+        .status(401)
+        .json({ error: { code: 'UNAUTHENTICATED', message: 'Missing refresh token' } });
       return;
     }
 

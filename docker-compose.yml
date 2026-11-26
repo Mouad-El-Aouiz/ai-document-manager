@@ -13,12 +13,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5433:5432"
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -30,12 +30,12 @@ services:
     container_name: aidm-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ['redis-server', '--appendonly', 'yes']
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 10
@@ -49,13 +49,13 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - '9000:9000'
+      - '9001:9001'
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -71,14 +71,14 @@ services:
       dockerfile: apps/api/Dockerfile
       target: builder
     container_name: aidm-migrate
-    command: ["sh", "/app/apps/api/scripts/docker-migrate.sh"]
+    command: ['sh', '/app/apps/api/scripts/docker-migrate.sh']
     environment:
       DATABASE_URL: postgresql://aidm_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       DATABASE_URL_MIGRATE: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
     depends_on:
       postgres:
         condition: service_healthy
-    restart: "no"
+    restart: 'no'
     networks: [aidm-network]
   # ────────────────────────────────────────────────
   # API
@@ -109,7 +109,7 @@ services:
       ALLOWED_MIME_TYPES: ${ALLOWED_MIME_TYPES}
       MAX_FILE_SIZE_BYTES: ${MAX_FILE_SIZE_BYTES}
     ports:
-      - "3000:3000"
+      - '3000:3000'
     depends_on:
       migrate:
         condition: service_completed_successfully
